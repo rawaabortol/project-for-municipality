@@ -118,6 +118,20 @@ export const AnalyticsCharts: React.FC = () => {
             <SkeletonChartCard type="pie" />
           </div>
         </div>
+      ) : stats.totalReports === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center mx-auto">
+            <BarChart3 className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-white">
+            {language === 'ar' ? 'لا توجد بيانات وبائية مسجلة حالياً' : 'No Incident Data Recorded Yet'}
+          </h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            {language === 'ar'
+              ? 'قاعدة البيانات خالية من البلاغات حالياً. بمجرد تسجيل بلاغات أو إجراء فحوصات ميدانية في طرابلس، ستظهر المخططات البيانية وتوزيع المخاطر تلقائياً.'
+              : 'The database is currently empty. Once citizen reports or field inspections are filed in Tripoli, analytic charts and risk distributions will generate automatically.'}
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Category Breakdown (2 Cols) */}

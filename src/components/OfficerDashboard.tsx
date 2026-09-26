@@ -163,6 +163,16 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({
                 <SkeletonClusterCard />
                 <SkeletonClusterCard />
               </div>
+            ) : clusters.length === 0 ? (
+              <div className="py-8 text-center bg-slate-800/40 rounded-xl border border-slate-800/80 px-4 space-y-1.5">
+                <Radio className="w-6 h-6 text-slate-500 mx-auto" />
+                <p className="text-xs font-semibold text-slate-300">
+                  {language === 'ar' ? 'لا توجد بؤر وبائية مرصودة حالياً' : 'No active clusters detected'}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {language === 'ar' ? 'يقوم النظام بمسح البلاغات تلقائياً' : 'System scans reports automatically'}
+                </p>
+              </div>
             ) : (
               <div className="space-y-2.5">
                 {clusters.slice(0, 3).map(c => {
@@ -272,6 +282,17 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({
                   <SkeletonTableRow />
                   <SkeletonTableRow />
                 </>
+              ) : triageQueue.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
+                    <p className="font-semibold text-slate-300">
+                      {language === 'ar' ? 'لا توجد بلاغات بانتظار الفرز والتدقيق حالياً.' : 'No incident reports awaiting triage at this time.'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {language === 'ar' ? 'البلاغات الجديدة المسجلة في طرابلس ستظهر هنا فور إرسالها.' : 'New complaints submitted across Tripoli will appear here.'}
+                    </p>
+                  </td>
+                </tr>
               ) : (
                 triageQueue.map(rep => {
                   const colors = getRiskColor(rep.riskLevel);

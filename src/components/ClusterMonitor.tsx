@@ -85,6 +85,20 @@ export const ClusterMonitor: React.FC<ClusterMonitorProps> = ({ clusters, onSele
           <SkeletonClusterCard />
           <SkeletonClusterCard />
         </div>
+      ) : clusters.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center mx-auto">
+            <Radio className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-white">
+            {language === 'ar' ? 'لا توجد بؤر وبائية مرصودة حالياً' : 'No Active Epidemiological Clusters'}
+          </h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            {language === 'ar'
+              ? 'يقوم محرك الترصد التلقائي بتحليل البلاغات جغرافياً وزمنياً باستمرار للتعرف على أي تفشيات محتملة فور تقديم البلاغات.'
+              : 'The automated surveillance engine continuously analyzes spatio-temporal clusters as complaints are submitted across Tripoli.'}
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {clusters.map(cls => {

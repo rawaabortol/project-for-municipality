@@ -13,15 +13,10 @@ export const authService = {
   roleModel: RoleModel,
 
   getCurrentUser: (): User | null => {
-    const saved = authStorage.getUser<User>();
-    if (saved) return saved;
-    // Default to Health Officer for rich interactive triage testing
-    const defaultUser = initialUsers.find(u => u.role === 'HEALTH_OFFICER') || initialUsers[3];
-    authStorage.setUser(defaultUser);
-    return defaultUser;
+    return authStorage.getUser<User>() || null;
   },
 
-  switchRoleAccount: (role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR', specificUserId?: string): User => {
+  switchRoleAccount: (role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR', specificUserId?: string): User | null => {
     let user: User | undefined;
     if (specificUserId) {
       user = dbInstance.users.find(u => u.id === specificUserId);
@@ -29,12 +24,15 @@ export const authService = {
     if (!user) {
       user = dbInstance.users.find(u => u.role === role);
     }
-    if (!user) {
-      user = initialUsers[0];
+    if (!user && dbInstance.users.length > 0) {
+      user = dbInstance.users[0];
     }
-    authStorage.setUser(user);
-    authStorage.setToken(`demo-token-${user.id}`);
-    return user;
+    if (user) {
+      authStorage.setUser(user);
+      authStorage.setToken(`demo-token-${user.id}`);
+      return user;
+    }
+    return null;
   },
 
   login: async (email: string, role?: string): Promise<User> => {

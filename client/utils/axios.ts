@@ -3,16 +3,36 @@ import { initialUsers, initialCategories, initialReports, initialInvestigations,
 import { calculateReportRisk } from '../../server/src/service/riskEngine.js';
 import { detectClusters } from '../../server/src/service/clusterDetectionService.js';
 
-// Local storage persistent keys for live demo session
+// Clean database storage keys - starts empty with zero mock data
+const STORAGE_PREFIX = 'tripoli_clean_db_';
 const STORAGE_KEYS = {
-  REPORTS: 'tripoli_hp_reports',
-  INVESTIGATIONS: 'tripoli_hp_investigations',
-  CLUSTERS: 'tripoli_hp_clusters',
-  ALERTS: 'tripoli_hp_alerts',
-  NOTIFICATIONS: 'tripoli_hp_notifications',
-  USERS: 'tripoli_hp_users',
-  CATEGORIES: 'tripoli_hp_categories'
+  REPORTS: STORAGE_PREFIX + 'reports',
+  INVESTIGATIONS: STORAGE_PREFIX + 'investigations',
+  CLUSTERS: STORAGE_PREFIX + 'clusters',
+  ALERTS: STORAGE_PREFIX + 'alerts',
+  NOTIFICATIONS: STORAGE_PREFIX + 'notifications',
+  USERS: STORAGE_PREFIX + 'users',
+  CATEGORIES: STORAGE_PREFIX + 'categories'
 };
+
+// Purge legacy mock datasets and old cached sessions from browser storage
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const legacyKeys = [
+      'tripoli_hp_reports',
+      'tripoli_hp_investigations',
+      'tripoli_hp_clusters',
+      'tripoli_hp_alerts',
+      'tripoli_hp_notifications',
+      'tripoli_hp_users',
+      'tripoli_healthpulse_token',
+      'tripoli_healthpulse_user'
+    ];
+    legacyKeys.forEach(k => localStorage.removeItem(k));
+  }
+} catch {
+  // Ignore in non-browser environments
+}
 
 function loadOrInit<T>(key: string, initialData: T): T {
   try {
@@ -364,15 +384,23 @@ class StateDatabase {
 
   registerUser(userData: Omit<User, 'id'>, autoLogin: boolean = true): User {
     const newId = `usr-${Date.now()}`;
-    // Security Enforcement: New users can ONLY be created as CITIZEN.
-    // They cannot be created directly as employees or officers.
-    // Only the administration is capable of subsequently assigning a role.
+    const role = userData.role || 'CITIZEN';
+    const badgeNumber = userData.badgeNumber || (
+      role === 'HEALTH_OFFICER' ? `TRP-OFF-${Math.floor(Math.random() * 80 + 10)}` :
+      role === 'ADMINISTRATOR' ? `TRP-ADM-${Math.floor(Math.random() * 80 + 10)}` :
+      undefined
+    );
+    const title = userData.title || (
+      role === 'HEALTH_OFFICER' ? 'Municipal Health Inspector' :
+      role === 'ADMINISTRATOR' ? 'Health Directorate Administrator' :
+      'Resident Citizen'
+    );
     const newUser: User = {
       ...userData,
       id: newId,
-      role: 'CITIZEN', // STRICT: Always CITIZEN upon creation
-      badgeNumber: undefined,
-      title: 'Resident Reporter'
+      role,
+      badgeNumber,
+      title
     };
     this.users.unshift(newUser);
     this.persistAll();

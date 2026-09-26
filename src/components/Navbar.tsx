@@ -68,6 +68,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     ignoreRefs: [roleTriggerRef]
   });
 
+  if (!currentUser) return null;
+
   const toggleLanguage = () => {
     setLanguage(language === 'en' ? 'ar' : 'en');
   };

@@ -9,16 +9,30 @@ import {
   initialNotifications
 } from './sampleData.js';
 
-// Local storage persistent keys for live demo session
+const STORAGE_PREFIX = 'tripoli_clean_db_';
 const STORAGE_KEYS = {
-  REPORTS: 'tripoli_hp_reports',
-  INVESTIGATIONS: 'tripoli_hp_investigations',
-  CLUSTERS: 'tripoli_hp_clusters',
-  ALERTS: 'tripoli_hp_alerts',
-  NOTIFICATIONS: 'tripoli_hp_notifications',
-  USERS: 'tripoli_hp_users',
-  CATEGORIES: 'tripoli_hp_categories'
+  REPORTS: STORAGE_PREFIX + 'reports',
+  INVESTIGATIONS: STORAGE_PREFIX + 'investigations',
+  CLUSTERS: STORAGE_PREFIX + 'clusters',
+  ALERTS: STORAGE_PREFIX + 'alerts',
+  NOTIFICATIONS: STORAGE_PREFIX + 'notifications',
+  USERS: STORAGE_PREFIX + 'users',
+  CATEGORIES: STORAGE_PREFIX + 'categories'
 };
+
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    [
+      'tripoli_hp_reports',
+      'tripoli_hp_investigations',
+      'tripoli_hp_clusters',
+      'tripoli_hp_alerts',
+      'tripoli_hp_notifications'
+    ].forEach(k => localStorage.removeItem(k));
+  }
+} catch {
+  // Ignore
+}
 
 function loadOrInit(key, initialData) {
   try {

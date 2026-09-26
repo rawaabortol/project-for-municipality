@@ -24,11 +24,12 @@ import { InvestigationModal } from './components/InvestigationModal';
 import { ExportReportModal } from './components/ExportReportModal';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
+import { LoginPage } from './components/LoginPage';
 import { dbInstance } from './utils/axios';
 import { Report } from './utils/sampleData';
 
 const MainApp: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, isAuthenticated } = useAuth();
   const { t, language, isRtl } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
@@ -42,6 +43,11 @@ const MainApp: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isNavbarVisible, setIsNavbarVisible] = useState<boolean>(true);
+
+  // If not authenticated or no user is open, display the Login Page as the default initial page
+  if (!isAuthenticated || !currentUser) {
+    return <LoginPage />;
+  }
 
   // Keyboard shortcut (Alt+N) to toggle navbar slide up/down independently from scroll
   useEffect(() => {
