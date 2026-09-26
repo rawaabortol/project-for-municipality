@@ -1,0 +1,6 @@
+{
+  "name": "Tripoli HealthPulse - Smart Public Health Monitoring System",
+  "description": "Smart Public Health Monitoring, Incident Reporting, Risk Assessment, and Outbreak Surveillance System for Tripoli, Lebanon.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
