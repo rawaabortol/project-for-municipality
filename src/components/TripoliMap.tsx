@@ -29,27 +29,41 @@ import {
 } from 'lucide-react';
 import { SkeletonMap } from './common/Skeleton';
 
-// Base Tile Layer Configurations for Leaflet
+// Base Tile Layer Configurations for Leaflet (No API Key Required)
 const TILE_PROVIDERS = {
-  dark: {
-    name: 'Surveillance Dark',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
-  },
-  voyager: {
-    name: 'Carto Voyager',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
-  },
   osm: {
     name: 'OpenStreetMap',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
     subdomains: 'abc',
+    maxZoom: 19
+  },
+  streets: {
+    name: 'Tripoli Streets',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Street Map',
+    subdomains: '',
+    maxZoom: 19
+  },
+  dark: {
+    name: 'Surveillance Dark',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Dark Canvas',
+    subdomains: '',
+    maxZoom: 16
+  },
+  satellite: {
+    name: 'Satellite Aerial',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Satellite View',
+    subdomains: '',
+    maxZoom: 18
+  },
+  voyager: {
+    name: 'Tripoli Streets',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Street Map',
+    subdomains: '',
     maxZoom: 19
   }
 };
@@ -181,7 +195,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
 
   // States
   const [isMapLoading, setIsMapLoading] = useState<boolean>(true);
-  const [baseTileTheme, setBaseTileTheme] = useState<'dark' | 'voyager' | 'osm'>('dark');
+  const [baseTileTheme, setBaseTileTheme] = useState<'osm' | 'streets' | 'dark' | 'satellite' | 'voyager'>('osm');
   const [selectedRisk, setSelectedRisk] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -265,11 +279,12 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
     }).addTo(map);
 
     // Initial tile layer
-    const provider = TILE_PROVIDERS[baseTileTheme];
+    const provider = TILE_PROVIDERS[baseTileTheme] || TILE_PROVIDERS.osm;
     const tileLayer = L.tileLayer(provider.url, {
       attribution: provider.attribution,
-      subdomains: provider.subdomains,
-      maxZoom: provider.maxZoom
+      subdomains: provider.subdomains || 'abc',
+      maxZoom: provider.maxZoom || 19,
+      errorTileUrl: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
     }).addTo(map);
 
     tileLayerRef.current = tileLayer;
@@ -360,7 +375,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
   // 2. Switch Leaflet Tile Layer when baseTileTheme changes
   useEffect(() => {
     if (!mapInstanceRef.current) return;
-    const provider = TILE_PROVIDERS[baseTileTheme];
+    const provider = TILE_PROVIDERS[baseTileTheme] || TILE_PROVIDERS.osm;
 
     if (tileLayerRef.current) {
       mapInstanceRef.current.removeLayer(tileLayerRef.current);
@@ -368,8 +383,9 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
 
     const newTileLayer = L.tileLayer(provider.url, {
       attribution: provider.attribution,
-      subdomains: provider.subdomains,
-      maxZoom: provider.maxZoom
+      subdomains: provider.subdomains || 'abc',
+      maxZoom: provider.maxZoom || 19,
+      errorTileUrl: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
     }).addTo(mapInstanceRef.current);
 
     tileLayerRef.current = newTileLayer;
@@ -705,31 +721,40 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
           {/* Base Tile Selector */}
           <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700">
             <button
-              onClick={() => setBaseTileTheme('dark')}
-              title="Carto Dark Matter (Surveillance)"
-              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                baseTileTheme === 'dark' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Dark
-            </button>
-            <button
-              onClick={() => setBaseTileTheme('voyager')}
-              title="Carto Voyager"
-              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                baseTileTheme === 'voyager' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Voyager
-            </button>
-            <button
               onClick={() => setBaseTileTheme('osm')}
-              title="OpenStreetMap Standard"
+              title={language === 'ar' ? 'خريطة الشوارع المفتوحة' : 'OpenStreetMap Standard'}
               className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                 baseTileTheme === 'osm' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               OSM
+            </button>
+            <button
+              onClick={() => setBaseTileTheme('streets')}
+              title={language === 'ar' ? 'خريطة شوارع طرابلس' : 'Tripoli Streets'}
+              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                baseTileTheme === 'streets' || baseTileTheme === 'voyager' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {language === 'ar' ? 'شوارع' : 'Streets'}
+            </button>
+            <button
+              onClick={() => setBaseTileTheme('dark')}
+              title={language === 'ar' ? 'النمط الليلي' : 'Night Surveillance Dark'}
+              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                baseTileTheme === 'dark' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {language === 'ar' ? 'داكن' : 'Dark'}
+            </button>
+            <button
+              onClick={() => setBaseTileTheme('satellite')}
+              title={language === 'ar' ? 'صور الأقمار الصناعية' : 'Satellite Imagery'}
+              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                baseTileTheme === 'satellite' ? 'bg-teal-500 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {language === 'ar' ? 'أقمار' : 'Satellite'}
             </button>
           </div>
 

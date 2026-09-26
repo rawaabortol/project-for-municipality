@@ -1,5 +1,8 @@
 import { calculateHaversineDistanceKm } from './riskEngine.js';
 import { RISK_LEVELS, ALERT_TYPES } from '../constant/index.js';
+import Cluster from '../models/Cluster.js';
+import Report from '../models/Report.js';
+import Alert from '../models/Alert.js';
 
 /**
  * Intelligent Cluster Detection Engine for Tripoli
@@ -31,7 +34,8 @@ export function detectClusters(reports = []) {
 
     for (let i = 0; i < groupReports.length; i++) {
       const base = groupReports[i];
-      if (processedReportIds.has(String(base._id || base.id))) continue;
+      const baseId = String(base._id || base.id);
+      if (processedReportIds.has(baseId)) continue;
 
       const clusterMembers = [base];
       const baseLat = base.location.lat;
@@ -41,7 +45,8 @@ export function detectClusters(reports = []) {
       for (let j = 0; j < groupReports.length; j++) {
         if (i === j) continue;
         const candidate = groupReports[j];
-        if (processedReportIds.has(String(candidate._id || candidate.id))) continue;
+        const candId = String(candidate._id || candidate.id);
+        if (processedReportIds.has(candId)) continue;
 
         const candLat = candidate.location.lat;
         const candLng = candidate.location.lng;
@@ -99,4 +104,99 @@ export function detectClusters(reports = []) {
   }
 
   return clustersFound;
+}
+
+/**
+ * Mongoose Database-backed Cluster Detection and Persistence:
+ * Scans reports from MongoDB, detects spatial-temporal clusters, upserts Cluster documents,
+ * and raises automated Alert documents in MongoDB via Mongoose.
+ */
+export async function runClusterDetectionAndPersist() {
+  try {
+    // 1. Fetch active reports from MongoDB
+    const activeReports = await Report.find({
+      status: { $nin: ['REJECTED', 'CLOSED'] }
+    }).lean();
+
+    if (!activeReports.length) {
+      return [];
+    }
+
+    const detected = detectClusters(activeReports);
+    const savedClusters = [];
+
+    // 2. Persist clusters and trigger alerts in MongoDB
+    for (const clusterData of detected) {
+      const existing = await Cluster.findOne({
+        categoryName: clusterData.categoryName,
+        district: clusterData.district,
+        status: { $in: ['ACTIVE', 'INVESTIGATING'] }
+      });
+
+      let savedCluster;
+      if (existing) {
+        existing.reportIds = clusterData.reportIds;
+        existing.reportCount = clusterData.reportCount;
+        existing.totalAffected = clusterData.totalAffected;
+        existing.centroid = clusterData.centroid;
+        existing.riskLevel = clusterData.riskLevel;
+        savedCluster = await existing.save();
+      } else {
+        savedCluster = await Cluster.create({
+          clusterCode: clusterData.clusterCode,
+          categoryName: clusterData.categoryName,
+          district: clusterData.district,
+          centroid: clusterData.centroid,
+          radiusMeters: clusterData.radiusMeters,
+          reportIds: clusterData.reportIds,
+          reportCount: clusterData.reportCount,
+          totalAffected: clusterData.totalAffected,
+          riskLevel: clusterData.riskLevel,
+          timeWindowHours: clusterData.timeWindowHours,
+          detectedAt: new Date(),
+          status: 'ACTIVE'
+        });
+
+        // Trigger corresponding Mongoose Alert document
+        await Alert.create({
+          alertCode: `ALT-${savedCluster.clusterCode}`,
+          alertType: ALERT_TYPES.CLUSTER_DETECTED,
+          title: `EPIDEMIOLOGICAL CLUSTER: ${savedCluster.categoryName}`,
+          description: `Spike of ${savedCluster.reportCount} related reports detected in ${savedCluster.district} impacting ~${savedCluster.totalAffected} citizens. Outbreak protocol initiated.`,
+          relatedClusterId: savedCluster._id,
+          riskLevel: savedCluster.riskLevel,
+          area: savedCluster.district,
+          status: 'ACTIVE'
+        });
+      }
+
+      savedClusters.push(savedCluster);
+    }
+
+    return savedClusters;
+  } catch (error) {
+    console.error('Error running cluster detection with Mongoose:', error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieve all active clusters with populated reports from MongoDB
+ */
+export async function getActiveClustersFromDB() {
+  return await Cluster.find({ status: { $in: ['ACTIVE', 'INVESTIGATING'] } })
+    .populate('reportIds')
+    .sort({ updatedAt: -1 })
+    .lean();
+}
+
+/**
+ * Update cluster operational status in MongoDB via Mongoose
+ */
+export async function updateClusterStatusInDB(clusterId, status) {
+  return await Cluster.findByIdAndUpdate(
+    clusterId,
+    { status },
+    { new: true }
+  ).populate('reportIds');
 }

@@ -2,44 +2,31 @@ import ReportModel from '../../server/src/models/Report.js';
 import CategoryModel from '../../server/src/models/Category.js';
 import RiskAssessmentModel from '../../server/src/models/RiskAssessment.js';
 import { calculateReportRisk } from '../../server/src/service/riskEngine.js';
-import { dbInstance } from '../utils/axios';
-import { Report } from '../utils/sampleData';
+import { dbInstance } from '../utils/axios.js';
 
-/**
- * Client-Side Report Service utilizing Mongoose Report Model & Schema
- */
 export const reportService = {
-  // Direct reference to the Mongoose Model
   model: ReportModel,
   categoryModel: CategoryModel,
   riskModel: RiskAssessmentModel,
 
-  getReports: (): Report[] => {
+  getReports: () => {
     return [...dbInstance.reports];
   },
 
-  getReportById: (id: string): Report | undefined => {
-    return dbInstance.reports.find(r => r.id === id || r.reportNumber === id || (r as any)._id === id);
+  getReportById: (id) => {
+    return dbInstance.reports.find(r => r.id === id || r.reportNumber === id || r._id === id);
   },
 
-  getCitizenReports: (userId: string): Report[] => {
-    return dbInstance.reports.filter(r => r.citizen.userId === userId);
+  getCitizenReports: (userId) => {
+    return dbInstance.reports.filter(r => r.citizen?.userId === userId);
   },
 
-  createReport: (reportData: any, currentUser: any): Report => {
-    // 1. Calculate risk factors using the riskEngine
+  createReport: (reportData, currentUser) => {
     const risk = calculateReportRisk(reportData, dbInstance.reports);
-
-    // 2. Format conforming to Mongoose reportSchema
     const count = dbInstance.reports.length;
     const reportNumber = `TRP-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
-    const severity = (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(reportData.initialSeverity)
-      ? reportData.initialSeverity
-      : (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(reportData.severity)
-          ? reportData.severity
-          : 'MEDIUM')) as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
-    const newReport: Report = {
+    const newReport = {
       id: `rep_${Date.now()}`,
       reportNumber,
       citizen: {
@@ -56,25 +43,27 @@ export const reportService = {
       description: reportData.description,
       incidentDate: reportData.incidentDate || new Date().toISOString(),
       location: {
-        address: reportData.location?.address || reportData.location?.streetAddress || 'Tripoli',
         district: reportData.location?.district || 'Al-Tal',
+        streetAddress: reportData.location?.streetAddress || reportData.location?.address || 'Tripoli',
         lat: Number(reportData.location?.lat) || 34.4367,
         lng: Number(reportData.location?.lng) || 35.8497
       },
       affectedCount: Number(reportData.affectedCount) || 1,
-      initialSeverity: severity,
-      imageUrl: reportData.images?.[0] || reportData.imageUrl || '',
-      additionalComments: reportData.additionalComments || '',
+      initialSeverity: reportData.initialSeverity || reportData.severity || 'MEDIUM',
       status: 'SUBMITTED',
       riskScore: risk.riskScore,
-      riskLevel: risk.riskLevel as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+      riskLevel: risk.riskLevel,
       riskFactors: risk.factors,
+      images: reportData.images || [],
       statusHistory: [
         {
           oldStatus: 'NONE',
           newStatus: 'SUBMITTED',
-          changedBy: currentUser?.name || 'Citizen Reporter',
-          role: currentUser?.role || 'CITIZEN',
+          changedBy: {
+            userId: currentUser?.id || currentUser?._id || 'anonymous',
+            name: currentUser?.name || 'Citizen Reporter',
+            role: currentUser?.role || 'CITIZEN'
+          },
           timestamp: new Date().toISOString(),
           comment: 'Initial incident report submitted into municipal surveillance.'
         }
@@ -85,11 +74,11 @@ export const reportService = {
     return dbInstance.addReport(newReport, currentUser);
   },
 
-  updateStatus: (reportId: string, newStatus: any, comment: string, user: any): Report | null => {
+  updateStatus: (reportId, newStatus, comment, user) => {
     return dbInstance.updateReportStatus(reportId, newStatus, comment, user);
   },
 
-  assignOfficer: (reportId: string, officer: any, user: any): Report | null => {
+  assignOfficer: (reportId, officer, user) => {
     return dbInstance.assignOfficer(reportId, officer, user);
   }
 };

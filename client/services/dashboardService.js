@@ -2,13 +2,9 @@ import ReportModel from '../../server/src/models/Report.js';
 import ClusterModel from '../../server/src/models/Cluster.js';
 import AlertModel from '../../server/src/models/Alert.js';
 import InvestigationModel from '../../server/src/models/Investigation.js';
-import { dbInstance } from '../utils/axios';
+import { dbInstance } from '../utils/axios.js';
 
-/**
- * Client Dashboard Service utilizing Mongoose Analytics Models
- */
 export const dashboardService = {
-  // Direct reference to Mongoose Models
   reportModel: ReportModel,
   clusterModel: ClusterModel,
   alertModel: AlertModel,
@@ -32,34 +28,30 @@ export const dashboardService = {
     const activeAlerts = dbInstance.alerts.filter(a => a.status === 'ACTIVE').length;
     const activeClusters = dbInstance.clusters.filter(c => c.status === 'ACTIVE').length;
 
-    // By Category
-    const categoryCounts: { [key: string]: number } = {};
+    const categoryCounts = {};
     reports.forEach(r => {
-      const name = r.category.name;
+      const name = r.category?.name || r.category;
       categoryCounts[name] = (categoryCounts[name] || 0) + 1;
     });
     const categoryData = Object.entries(categoryCounts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
 
-    // By Status
-    const statusCounts: { [key: string]: number } = {};
+    const statusCounts = {};
     reports.forEach(r => {
       statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
     });
     const statusData = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
 
-    // By District
-    const districtCounts: { [key: string]: number } = {};
+    const districtCounts = {};
     reports.forEach(r => {
-      const d = r.location.district || 'Tripoli';
+      const d = r.location?.district || 'Tripoli';
       districtCounts[d] = (districtCounts[d] || 0) + 1;
     });
     const districtData = Object.entries(districtCounts)
       .map(([district, count]) => ({ district, count }))
       .sort((a, b) => b.count - a.count);
 
-    // Risk distribution
     const riskCounts = {
       CRITICAL: criticalCount,
       HIGH: highCount,

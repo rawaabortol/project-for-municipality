@@ -1,23 +1,18 @@
 import ClusterModel from '../../server/src/models/Cluster.js';
 import ReportModel from '../../server/src/models/Report.js';
 import AlertModel from '../../server/src/models/Alert.js';
-import { dbInstance } from '../utils/axios';
-import { Cluster } from '../utils/sampleData';
+import { dbInstance } from '../utils/axios.js';
 
-/**
- * Client Cluster Service utilizing Mongoose Cluster & Outbreak Models
- */
 export const clusterService = {
-  // Direct reference to Mongoose Models
   model: ClusterModel,
   reportModel: ReportModel,
   alertModel: AlertModel,
 
-  getClusters: (): Cluster[] => {
+  getClusters: () => {
     return [...dbInstance.clusters];
   },
 
-  triggerScan: (): Cluster[] => {
+  triggerScan: () => {
     return dbInstance.runClusterScan();
   }
 };

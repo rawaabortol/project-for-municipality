@@ -1,4 +1,8 @@
+import mongoose from 'mongoose';
 import { RISK_LEVELS, SEVERITY_LEVELS } from '../constant/index.js';
+import Report from '../models/Report.js';
+import RiskAssessment from '../models/RiskAssessment.js';
+import Category from '../models/Category.js';
 
 /**
  * Haversine formula to compute great-circle distance between two points in km
@@ -166,4 +170,60 @@ export function calculateReportRisk(reportData, existingReports = []) {
       explanations
     }
   };
+}
+
+/**
+ * Mongoose Database-backed Assessment:
+ * Evaluates risk for a Report document in MongoDB and persists a RiskAssessment document
+ */
+export async function assessAndSaveReportRisk(reportId) {
+  try {
+    const report = await Report.findById(reportId);
+    if (!report) {
+      throw new Error(`Report not found for ID ${reportId}`);
+    }
+
+    // Retrieve other active reports from MongoDB to check spatial-temporal proximity
+    const existingReports = await Report.find({
+      _id: { $ne: report._id },
+      status: { $nin: ['REJECTED', 'CLOSED'] }
+    }).lean();
+
+    const calculation = calculateReportRisk(report, existingReports);
+
+    // Save risk assessment document in MongoDB via Mongoose
+    const assessment = await RiskAssessment.create({
+      reportId: report._id,
+      reportNumber: report.reportNumber,
+      riskScore: calculation.riskScore,
+      riskLevel: calculation.riskLevel,
+      breakdown: {
+        severityScore: calculation.factors.severityScore,
+        affectedPeopleScore: calculation.factors.affectedPeopleScore,
+        recentReportsScore: calculation.factors.recentReportsScore,
+        geographicClusterScore: calculation.factors.geographicClusterScore,
+        categoryScore: calculation.factors.categoryScore
+      },
+      explanations: calculation.factors.explanations,
+      calculatedAt: new Date()
+    });
+
+    // Update the Report document in MongoDB
+    report.riskScore = calculation.riskScore;
+    report.riskLevel = calculation.riskLevel;
+    report.riskFactors = calculation.factors;
+    await report.save();
+
+    return { report, assessment, calculation };
+  } catch (error) {
+    console.error('Error assessing and saving report risk with Mongoose:', error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieve Risk Assessment audit history for a given report
+ */
+export async function getReportRiskHistory(reportId) {
+  return await RiskAssessment.find({ reportId }).sort({ calculatedAt: -1 }).lean();
 }

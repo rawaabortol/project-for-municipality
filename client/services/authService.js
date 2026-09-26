@@ -1,28 +1,23 @@
 import UserModel from '../../server/src/models/User.js';
 import RoleModel from '../../server/src/models/Role.js';
-import { authStorage } from '../utils/authStorage';
-import { dbInstance } from '../utils/axios';
-import { User, initialUsers } from '../utils/sampleData';
+import { authStorage } from '../utils/authStorage.js';
+import { dbInstance } from '../utils/axios.js';
+import { initialUsers } from '../utils/sampleData.js';
 
-/**
- * Client Auth Service utilizing Mongoose User & Role Models
- */
 export const authService = {
-  // Direct reference to Mongoose Models
   model: UserModel,
   roleModel: RoleModel,
 
-  getCurrentUser: (): User | null => {
-    const saved = authStorage.getUser<User>();
+  getCurrentUser: () => {
+    const saved = authStorage.getUser();
     if (saved) return saved;
-    // Default to Health Officer for rich interactive triage testing
     const defaultUser = initialUsers.find(u => u.role === 'HEALTH_OFFICER') || initialUsers[3];
     authStorage.setUser(defaultUser);
     return defaultUser;
   },
 
-  switchRoleAccount: (role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR', specificUserId?: string): User => {
-    let user: User | undefined;
+  switchRoleAccount: (role, specificUserId) => {
+    let user;
     if (specificUserId) {
       user = dbInstance.users.find(u => u.id === specificUserId);
     }
@@ -37,14 +32,14 @@ export const authService = {
     return user;
   },
 
-  login: async (email: string, role?: string): Promise<User> => {
+  login: async (email, role) => {
     let user = dbInstance.users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!user) {
       user = {
         id: `usr-${Date.now()}`,
         name: email.split('@')[0],
         email,
-        role: (role as any) || 'CITIZEN',
+        role: role || 'CITIZEN',
         phone: '+961 70 000000',
         district: 'Al-Tal'
       };
@@ -56,7 +51,7 @@ export const authService = {
     return user;
   },
 
-  logout: (): void => {
+  logout: () => {
     authStorage.clear();
   }
 };

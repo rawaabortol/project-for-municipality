@@ -1,35 +1,34 @@
-import { INVESTIGATION_RESULTS, INVESTIGATION_STATUSES } from '../constant/index.js';
+import { getInvestigationsFromDB, createInvestigationInDB, updateInvestigationInDB } from '../service/investigationService.js';
 
 export const getInvestigations = async (req, res) => {
-  return res.json({ success: true, investigations: [] });
+  try {
+    const { status, reportId } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (reportId) filter.reportId = reportId;
+
+    const investigations = await getInvestigationsFromDB(filter);
+    return res.json({ success: true, investigations });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 export const createInvestigation = async (req, res) => {
-  const { reportId, reportNumber, findings, actionsTaken, recommendations, result, samplesCollected, notes } = req.body;
-  const investigation = {
-    id: `INV-${Date.now()}`,
-    investigationCode: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-    reportId,
-    reportNumber,
-    officer: {
-      userId: req.user?.id || 'usr-officer-1',
-      name: req.user?.name || 'Dr. Tariq Al-Hajj',
-      badgeNumber: req.user?.badgeNumber || 'TRP-OFF-01'
-    },
-    investigationDate: new Date().toISOString(),
-    findings,
-    actionsTaken,
-    recommendations,
-    result: result || INVESTIGATION_RESULTS.INCONCLUSIVE,
-    samplesCollected: samplesCollected || 'None',
-    notes: notes || '',
-    status: INVESTIGATION_STATUSES.IN_PROGRESS,
-    createdAt: new Date().toISOString()
-  };
-  return res.status(201).json({ success: true, investigation });
+  try {
+    const investigation = await createInvestigationInDB(req.body, req.user);
+    return res.status(201).json({ success: true, investigation });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 export const updateInvestigation = async (req, res) => {
-  const { id } = req.params;
-  return res.json({ success: true, message: `Investigation ${id} updated`, data: req.body });
+  try {
+    const { id } = req.params;
+    const updated = await updateInvestigationInDB(id, req.body, req.user);
+    return res.json({ success: true, investigation: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };

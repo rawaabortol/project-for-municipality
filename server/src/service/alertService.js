@@ -1,7 +1,11 @@
 import { ALERT_TYPES, RISK_LEVELS } from '../constant/index.js';
+import Alert from '../models/Alert.js';
+import Report from '../models/Report.js';
+import Cluster from '../models/Cluster.js';
+import Notification from '../models/Notification.js';
 
 /**
- * Intelligent Health Alert Generator
+ * Intelligent Health Alert Generator (In-Memory / Synchronous Helper)
  */
 export function generateAlertsForReports(reports = [], clusters = []) {
   const alerts = [];
@@ -65,4 +69,89 @@ export function generateAlertsForReports(reports = [], clusters = []) {
   }
 
   return alerts;
+}
+
+/**
+ * Mongoose Database-backed Alert Synchronization & Creation:
+ * Inspects active reports in MongoDB, creates Mongoose Alert documents for unhandled critical incidents
+ */
+export async function syncAlertsWithDB() {
+  try {
+    const criticalReports = await Report.find({
+      riskLevel: RISK_LEVELS.CRITICAL,
+      status: { $nin: ['RESOLVED', 'CLOSED', 'REJECTED'] }
+    });
+
+    const newAlerts = [];
+
+    for (const report of criticalReports) {
+      const existingAlert = await Alert.findOne({
+        relatedReportId: report._id,
+        status: { $in: ['ACTIVE', 'ACKNOWLEDGED'] }
+      });
+
+      if (!existingAlert) {
+        const createdAlert = await Alert.create({
+          alertCode: `ALT-${report.reportNumber}`,
+          alertType: ALERT_TYPES.CRITICAL_INCIDENT,
+          title: `CRITICAL RISK INCIDENT: ${report.title}`,
+          description: `Score ${report.riskScore}/100 in ${report.location?.district}. Urgent containment needed.`,
+          relatedReportId: report._id,
+          riskLevel: RISK_LEVELS.CRITICAL,
+          area: report.location?.district || 'Tripoli',
+          status: 'ACTIVE',
+          assignedOfficer: report.assignedOfficer ? {
+            userId: report.assignedOfficer.userId,
+            name: report.assignedOfficer.name
+          } : undefined
+        });
+
+        newAlerts.push(createdAlert);
+      }
+    }
+
+    return newAlerts;
+  } catch (error) {
+    console.error('Error syncing alerts with Mongoose in MongoDB:', error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieve alerts from MongoDB using Mongoose
+ */
+export async function getAlertsFromDB(filter = {}) {
+  return await Alert.find(filter)
+    .populate('relatedReportId')
+    .populate('relatedClusterId')
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
+/**
+ * Acknowledge an alert in MongoDB using Mongoose
+ */
+export async function acknowledgeAlertInDB(alertId, officer) {
+  return await Alert.findByIdAndUpdate(
+    alertId,
+    {
+      status: 'ACKNOWLEDGED',
+      assignedOfficer: officer ? {
+        userId: officer._id || officer.id,
+        name: officer.name
+      } : undefined
+    },
+    { new: true }
+  );
+}
+
+/**
+ * Resolve an alert in MongoDB using Mongoose
+ */
+export async function resolveAlertInDB(alertId) {
+  return await Alert.findByIdAndUpdate(
+    alertId,
+    { status: 'RESOLVED' },
+    { new: true }
+  );
 }

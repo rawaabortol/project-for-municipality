@@ -1,29 +1,24 @@
 import InvestigationModel from '../../server/src/models/Investigation.js';
 import ReportModel from '../../server/src/models/Report.js';
-import { dbInstance } from '../utils/axios';
-import { Investigation } from '../utils/sampleData';
+import { dbInstance } from '../utils/axios.js';
 
-/**
- * Client Investigation Service utilizing Mongoose Investigation & Report Models
- */
 export const investigationService = {
-  // Direct reference to Mongoose Models
   model: InvestigationModel,
   reportModel: ReportModel,
 
-  getInvestigations: (): Investigation[] => {
+  getInvestigations: () => {
     return [...dbInstance.investigations];
   },
 
-  getInvestigationByReportId: (reportId: string): Investigation | undefined => {
+  getInvestigationByReportId: (reportId) => {
     return dbInstance.investigations.find(i => i.reportId === reportId || i.reportNumber === reportId);
   },
 
-  createInvestigation: (data: any, officer: any): Investigation => {
+  createInvestigation: (data, officer) => {
     return dbInstance.createInvestigation(data, officer);
   },
 
-  updateInvestigation: (id: string, updates: Partial<Investigation>): Investigation | null => {
+  updateInvestigation: (id, updates) => {
     const inv = dbInstance.investigations.find(i => i.id === id);
     if (!inv) return null;
     Object.assign(inv, updates);
