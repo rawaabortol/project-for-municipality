@@ -1,20 +1,10 @@
-import AlertModel from '../../server/src/models/Alert.js';
-import ClusterModel from '../../server/src/models/Cluster.js';
-import ReportModel from '../../server/src/models/Report.js';
-import NotificationModel from '../../server/src/models/Notification.js';
-import { dbInstance } from '../utils/axios';
-import { Alert } from '../utils/sampleData';
+import { dbInstance } from "../utils/axios";
+import { Alert } from "../utils/sampleData";
 
 /**
- * Client Alert Service utilizing Mongoose Alert & Notification Models
+ * Browser-safe alert service.
  */
 export const alertService = {
-  // Direct reference to Mongoose Models
-  model: AlertModel,
-  clusterModel: ClusterModel,
-  reportModel: ReportModel,
-  notificationModel: NotificationModel,
-
   getAlerts: (): Alert[] => {
     return [...dbInstance.alerts];
   },
@@ -25,7 +15,7 @@ export const alertService = {
 
   resolveAlert: (alertId: string): void => {
     dbInstance.resolveAlert(alertId);
-  }
+  },
 };
 
 export default alertService;

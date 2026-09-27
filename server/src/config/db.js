@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 export const connectDB = async () => {
   try {
     mongoose.set('bufferCommands', false);
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tripoli_healthpulse';
+    const mongoUri = process.env.MONGODB_URI ;
     const conn = await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
     });

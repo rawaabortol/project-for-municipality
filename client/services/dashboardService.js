@@ -1,15 +1,6 @@
-import ReportModel from '../../server/src/models/Report.js';
-import ClusterModel from '../../server/src/models/Cluster.js';
-import AlertModel from '../../server/src/models/Alert.js';
-import InvestigationModel from '../../server/src/models/Investigation.js';
-import { dbInstance } from '../utils/axios.js';
+import { dbInstance } from "../utils/axios.js";
 
 export const dashboardService = {
-  reportModel: ReportModel,
-  clusterModel: ClusterModel,
-  alertModel: AlertModel,
-  investigationModel: InvestigationModel,
-
   getStats: () => {
     const reports = dbInstance.reports;
     const now = Date.now();
@@ -17,19 +8,35 @@ export const dashboardService = {
     const oneWeekAgo = now - 7 * 24 * 3600 * 1000;
     const oneMonthAgo = now - 30 * 24 * 3600 * 1000;
 
-    const reportsToday = reports.filter(r => new Date(r.createdAt).getTime() >= oneDayAgo).length;
-    const reportsThisWeek = reports.filter(r => new Date(r.createdAt).getTime() >= oneWeekAgo).length;
-    const reportsThisMonth = reports.filter(r => new Date(r.createdAt).getTime() >= oneMonthAgo).length;
+    const reportsToday = reports.filter(
+      (r) => new Date(r.createdAt).getTime() >= oneDayAgo,
+    ).length;
+    const reportsThisWeek = reports.filter(
+      (r) => new Date(r.createdAt).getTime() >= oneWeekAgo,
+    ).length;
+    const reportsThisMonth = reports.filter(
+      (r) => new Date(r.createdAt).getTime() >= oneMonthAgo,
+    ).length;
 
-    const criticalCount = reports.filter(r => r.riskLevel === 'CRITICAL').length;
-    const highCount = reports.filter(r => r.riskLevel === 'HIGH').length;
-    const underInvestigationCount = reports.filter(r => r.status === 'IN_INVESTIGATION').length;
-    const resolvedCount = reports.filter(r => r.status === 'RESOLVED' || r.status === 'CLOSED').length;
-    const activeAlerts = dbInstance.alerts.filter(a => a.status === 'ACTIVE').length;
-    const activeClusters = dbInstance.clusters.filter(c => c.status === 'ACTIVE').length;
+    const criticalCount = reports.filter(
+      (r) => r.riskLevel === "CRITICAL",
+    ).length;
+    const highCount = reports.filter((r) => r.riskLevel === "HIGH").length;
+    const underInvestigationCount = reports.filter(
+      (r) => r.status === "IN_INVESTIGATION",
+    ).length;
+    const resolvedCount = reports.filter(
+      (r) => r.status === "RESOLVED" || r.status === "CLOSED",
+    ).length;
+    const activeAlerts = dbInstance.alerts.filter(
+      (a) => a.status === "ACTIVE",
+    ).length;
+    const activeClusters = dbInstance.clusters.filter(
+      (c) => c.status === "ACTIVE",
+    ).length;
 
     const categoryCounts = {};
-    reports.forEach(r => {
+    reports.forEach((r) => {
       const name = r.category?.name || r.category;
       categoryCounts[name] = (categoryCounts[name] || 0) + 1;
     });
@@ -38,14 +45,17 @@ export const dashboardService = {
       .sort((a, b) => b.count - a.count);
 
     const statusCounts = {};
-    reports.forEach(r => {
+    reports.forEach((r) => {
       statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
     });
-    const statusData = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
+    const statusData = Object.entries(statusCounts).map(([status, count]) => ({
+      status,
+      count,
+    }));
 
     const districtCounts = {};
-    reports.forEach(r => {
-      const d = r.location?.district || 'Tripoli';
+    reports.forEach((r) => {
+      const d = r.location?.district || "Tripoli";
       districtCounts[d] = (districtCounts[d] || 0) + 1;
     });
     const districtData = Object.entries(districtCounts)
@@ -55,12 +65,18 @@ export const dashboardService = {
     const riskCounts = {
       CRITICAL: criticalCount,
       HIGH: highCount,
-      MEDIUM: reports.filter(r => r.riskLevel === 'MEDIUM').length,
-      LOW: reports.filter(r => r.riskLevel === 'LOW').length
+      MEDIUM: reports.filter((r) => r.riskLevel === "MEDIUM").length,
+      LOW: reports.filter((r) => r.riskLevel === "LOW").length,
     };
-    const riskData = Object.entries(riskCounts).map(([level, count]) => ({ level, count }));
+    const riskData = Object.entries(riskCounts).map(([level, count]) => ({
+      level,
+      count,
+    }));
 
-    const resolutionRate = reports.length > 0 ? Math.round((resolvedCount / reports.length) * 100) : 0;
+    const resolutionRate =
+      reports.length > 0
+        ? Math.round((resolvedCount / reports.length) * 100)
+        : 0;
 
     return {
       totalReports: reports.length,
@@ -77,9 +93,9 @@ export const dashboardService = {
       categoryData,
       statusData,
       districtData,
-      riskData
+      riskData,
     };
-  }
+  },
 };
 
 export default dashboardService;

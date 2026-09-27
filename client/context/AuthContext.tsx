@@ -1,14 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../utils/sampleData';
-import { authService } from '../services/authService';
-import { dbInstance } from '../utils/axios';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { User } from "../utils/sampleData";
+import { authService } from "../services/authService";
+import { dbInstance } from "../utils/axios";
 
 interface AuthContextType {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
-  switchRole: (role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR', specificUserId?: string) => void;
-  login: (email: string, password?: string) => boolean;
-  register: (userData: Omit<User, 'id'>) => User;
+  switchRole: (
+    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
+    specificUserId?: string,
+  ) => void;
+  login: (email: string, password?: string) => Promise<boolean>;
+  register: (userData: Omit<User, "id">) => Promise<User | null>;
   updateProfile: (updates: Partial<User>) => User | null;
   logout: () => void;
   isAuthenticated: boolean;
@@ -16,7 +19,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return authService.getCurrentUser();
   });
@@ -25,7 +30,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return !!authService.getCurrentUser();
   });
 
-  const switchRole = (role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR', specificUserId?: string) => {
+  const switchRole = (
+    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
+    specificUserId?: string,
+  ) => {
     const switched = authService.switchRoleAccount(role, specificUserId);
     if (switched) {
       setCurrentUser(switched);
@@ -33,21 +41,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = (email: string, password?: string): boolean => {
-    const user = dbInstance.loginUser(email, password);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      return true;
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    try {
+      const user = await authService.login(email, password);
+      if (user) {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
-    return false;
   };
 
-  const register = (userData: Omit<User, 'id'>): User => {
-    const newUser = dbInstance.registerUser(userData);
-    setCurrentUser(newUser);
-    setIsAuthenticated(true);
-    return newUser;
+  const register = async (userData: Omit<User, "id">): Promise<User | null> => {
+    try {
+      const resp = await dbInstance.apiPost("/api/auth/register", userData);
+      const newUser = resp.user as User;
+      setCurrentUser(newUser);
+      setIsAuthenticated(true);
+      return newUser;
+    } catch (e) {
+      return null;
+    }
   };
 
   const updateProfile = (updates: Partial<User>): User | null => {
@@ -75,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         updateProfile,
         logout,
-        isAuthenticated
+        isAuthenticated,
       }}
     >
       {children}
@@ -85,6 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 };
