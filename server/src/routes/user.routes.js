@@ -1,11 +1,22 @@
 import express from "express";
-import { getUsers, updateUserRole } from "../controller/user.controller.js";
+import {
+  getUsers,
+  getOfficers,
+  createUser,
+  updateUserRole,
+  updateMyProfile,
+} from "../controller/user.controller.js";
 import { verifyAuth } from "../middleware/authMiddleware.js";
-import { isAdminOnly } from "../middleware/roleMiddleware.js";
+import { isAdminOnly, isOfficerOrAdmin } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", verifyAuth, isAdminOnly, getUsers);
-router.put("/:id/role", verifyAuth, isAdminOnly, updateUserRole);
+router.use(verifyAuth);
+
+router.put("/me", updateMyProfile);
+router.get("/officers", isOfficerOrAdmin, getOfficers);
+router.get("/", isAdminOnly, getUsers);
+router.post("/", isAdminOnly, createUser);
+router.put("/:id/role", isAdminOnly, updateUserRole);
 
 export default router;

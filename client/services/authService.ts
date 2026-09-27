@@ -1,48 +1,41 @@
+import { apiClient } from "../utils/axios";
 import { authStorage } from "../utils/authStorage";
-import { dbInstance } from "../utils/axios";
+import { toUser } from "../utils/normalize";
 import { User } from "../utils/sampleData";
 
-/**
- * Browser-safe auth service.
- */
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  district?: string;
+}
+
+const storeSession = (data: { user: any; token: string }): User => {
+  const user = toUser(data.user);
+  authStorage.setToken(data.token);
+  authStorage.setUser(user);
+  return user;
+};
+
 export const authService = {
-  getCurrentUser: (): User | null => {
-    // Return stored user only; do not inject demo/static users.
-    return authStorage.getUser<User>() || null;
+  getStoredUser: (): User | null => (authStorage.getToken() ? authStorage.getUser<User>() : null),
+
+  login: async (email: string, password: string): Promise<User> => {
+    const { data } = await apiClient.post("/auth/login", { email: email.trim(), password });
+    return storeSession(data.data);
   },
 
-  switchRoleAccount: (
-    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
-    specificUserId?: string,
-  ): User | null => {
-    // Server-driven role switching is preferred; local fallback searches dbInstance only if necessary
-    let user: User | undefined;
-    if (specificUserId) {
-      user = dbInstance.users.find((u) => u.id === specificUserId);
-    }
-    if (!user) {
-      user = dbInstance.users.find((u) => u.role === role);
-    }
-    if (!user && dbInstance.users.length > 0) {
-      user = dbInstance.users[0];
-    }
-    if (user) {
-      authStorage.setUser(user);
-      authStorage.setToken(`token-${user.id}`);
-      return user;
-    }
-    return null;
+  register: async (payload: RegisterPayload): Promise<User> => {
+    const { data } = await apiClient.post("/auth/register", payload);
+    return storeSession(data.data);
   },
 
-  login: async (email: string, password?: string): Promise<User> => {
-    // Call backend to authenticate
-    const resp = await dbInstance.apiPost("/api/auth/login", {
-      email,
-      password,
-    });
-    const user = resp.user as User;
+  /** Re-validates the stored token and returns the fresh user record. */
+  fetchMe: async (): Promise<User> => {
+    const { data } = await apiClient.get("/auth/me");
+    const user = toUser(data.data.user);
     authStorage.setUser(user);
-    authStorage.setToken(resp.token);
     return user;
   },
 

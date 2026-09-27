@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import L from 'leaflet';
-import { Report, Cluster } from '../../utils/sampleData';
+import { Report, Cluster, Alert } from '../../utils/sampleData';
 import { getRiskColor, getStatusBadge, formatDateTime } from '../../utils/helper';
 import { TRIPOLI_COORDINATES, TRIPOLI_DISTRICTS } from '../../utils/APIConst';
 import { useLanguage } from '../../context/LanguageContext';
-import { dbInstance } from '../../utils/axios';
 import { useDismissOnBlurOrOutside } from '../utils/useDismissOnBlurOrOutside';
 import {
   Filter,
@@ -157,6 +157,7 @@ const DISTRICT_BOUNDS: Record<string, { center: [number, number]; polygon: [numb
 interface TripoliMapProps {
   reports: Report[];
   clusters?: Cluster[];
+  alerts?: Alert[];
   onSelectReport?: (report: Report) => void;
   selectedReportId?: string;
   isPickerMode?: boolean;
@@ -167,6 +168,7 @@ interface TripoliMapProps {
 export const TripoliMap: React.FC<TripoliMapProps> = ({
   reports,
   clusters = [],
+  alerts = [],
   onSelectReport,
   selectedReportId,
   isPickerMode = false,
@@ -223,7 +225,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
   const districtCriticalCount = districtReports.filter(r => r.riskLevel === 'CRITICAL' || r.riskLevel === 'HIGH').length;
   const districtAffectedCount = districtReports.reduce((acc, r) => acc + (r.affectedCount || 0), 0);
   const districtAlerts = selectedDistrictAnalysis
-    ? dbInstance.alerts.filter(a => a.area?.toLowerCase() === selectedDistrictAnalysis.toLowerCase() && a.status === 'ACTIVE')
+    ? alerts.filter(a => a.area?.toLowerCase() === selectedDistrictAnalysis.toLowerCase() && a.status === 'ACTIVE')
     : [];
 
   const categoryCounts: Record<string, number> = {};
@@ -417,8 +419,15 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
         opacity: 0.8,
         fillColor,
         fillOpacity,
-        dashArray: isSelected ? undefined : '4, 4'
+        dashArray: isSelected ? undefined : '4, 4',
+        // In the report form's location picker, clicks must reach the map to move the pin
+        interactive: !isPickerMode
       });
+
+      if (isPickerMode) {
+        districtsLayerRef.current?.addLayer(polygon);
+        return;
+      }
 
       // Tooltip on district
       polygon.bindTooltip(
@@ -454,7 +463,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
 
       districtsLayerRef.current?.addLayer(polygon);
     });
-  }, [reports, showDistricts, selectedDistrictAnalysis, language]);
+  }, [reports, showDistricts, selectedDistrictAnalysis, language, isPickerMode]);
 
   // 4. Render Incident Markers & Outbreak Cluster Circles
   useEffect(() => {
@@ -624,18 +633,29 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
   };
 
   const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-    setTimeout(() => {
-      mapInstanceRef.current?.invalidateSize();
-    }, 200);
+    setIsFullscreen(prev => !prev);
   };
+
+  // Resize Leaflet after entering/leaving fullscreen; Escape exits fullscreen
+  useEffect(() => {
+    const timer = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 50);
+    if (!isFullscreen) return () => clearTimeout(timer);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isFullscreen]);
 
   const categories = Array.from(new Set(reports.map(r => r.category.name)));
 
   const effectiveHeight = heightClass || (isPickerMode ? 'h-64 sm:h-72' : 'h-[460px] sm:h-[540px] lg:h-[600px]');
 
   return (
-    <div className={`relative w-full ${isFullscreen ? 'fixed inset-0 z-50 rounded-none h-full' : `${effectiveHeight} rounded-2xl`} overflow-hidden border border-slate-700 shadow-2xl bg-slate-950 flex flex-col transition-all duration-300`}>
+    <div className={`w-full ${isFullscreen ? 'fixed inset-0 z-[70] rounded-none h-full' : `relative ${effectiveHeight} rounded-2xl`} overflow-hidden border border-slate-700 shadow-2xl bg-slate-950 flex flex-col transition-all duration-300`}>
       {/* Top Filter and Controls Bar */}
       <div className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-4 py-2.5 z-10 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-200">
         <div className="flex flex-wrap items-center gap-2">
@@ -799,6 +819,17 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
       </div>
 
       {/* Leaflet Map Root Container */}
+      {isFullscreen && (
+        <button
+          onClick={toggleFullscreen}
+          className={`absolute bottom-16 ${isRtl ? 'left-4' : 'right-4'} z-[75] flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/95 hover:bg-slate-800 border border-teal-500/60 text-teal-200 text-xs font-bold shadow-2xl transition-colors`}
+          title={language === 'ar' ? 'الخروج من ملء الشاشة (Esc)' : 'Exit fullscreen (Esc)'}
+        >
+          <Minimize2 className="w-4 h-4" />
+          <span>{language === 'ar' ? 'تصغير الخريطة' : 'Exit Fullscreen'}</span>
+        </button>
+      )}
+
       <div ref={mapContainerRef} className="flex-1 w-full h-full relative z-0">
         {isMapLoading && (
           <div className="absolute inset-0 z-30 pointer-events-none">
@@ -808,7 +839,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
       </div>
 
       {/* Area Public Health Deep Profile Drawer */}
-      {selectedDistrictAnalysis && (
+      {selectedDistrictAnalysis && createPortal(
         <div
           ref={districtDrawerRef}
           tabIndex={-1}
@@ -817,9 +848,9 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
               setSelectedDistrictAnalysis(null);
             }
           }}
-          className={`absolute top-24 inset-x-3 sm:inset-x-auto ${
+          className={`fixed top-20 max-h-[calc(100vh-6rem)] inset-x-3 sm:inset-x-auto ${
             isRtl ? 'sm:left-4' : 'sm:right-4'
-          } z-30 w-auto sm:w-96 max-w-md bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-4 text-slate-100 animate-in fade-in zoom-in-95 max-h-[70vh] sm:max-h-[500px] overflow-y-auto space-y-3.5 focus:outline-none`}
+          } z-[80] w-auto sm:w-96 max-w-md bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-4 text-slate-100 animate-in fade-in zoom-in-95 overflow-y-auto space-y-3.5 focus:outline-none`}
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
@@ -908,7 +939,7 @@ export const TripoliMap: React.FC<TripoliMapProps> = ({
             </p>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Legend Footer */}
       <div className={`absolute bottom-3 ${isRtl ? 'right-3' : 'left-3'} z-20 bg-slate-900/90 backdrop-blur-md border border-slate-700 px-3 py-1.5 rounded-xl text-xs flex flex-wrap items-center gap-3 text-slate-300 shadow-xl pointer-events-auto`}>

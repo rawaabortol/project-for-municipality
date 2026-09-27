@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardService } from '../../services/dashboardService';
+import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { ShieldCheck, Droplets, PhoneCall, AlertTriangle, CheckCircle, Info, HeartPulse } from 'lucide-react';
 import { SkeletonMetricCard } from './common/Skeleton';
@@ -17,7 +17,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({ onOpenReport }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  const stats = dashboardService.getStats();
+  const { stats } = useData();
 
 
   return (

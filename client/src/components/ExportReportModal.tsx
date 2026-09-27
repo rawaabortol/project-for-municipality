@@ -1,6 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
-import { dashboardService } from '../../services/dashboardService';
+import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatDateTime } from '../../utils/helper';
 import { Printer, Download, X, Shield, FileText, CheckCircle2 } from 'lucide-react';
@@ -24,9 +23,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
     isRtl
   } = useLanguage();
 
-  const stats = dashboardService.getStats();
-  const criticalReports = dbInstance.reports.filter(r => r.riskLevel === 'CRITICAL').slice(0, 8);
-  const clusters = dbInstance.clusters;
+  const { stats, reports, clusters } = useData();
+  const criticalReports = reports.filter(r => r.riskLevel === 'CRITICAL').slice(0, 8);
 
   // Close on Escape key
   useEffect(() => {

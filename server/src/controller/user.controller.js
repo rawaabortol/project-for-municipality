@@ -1,34 +1,45 @@
 import UserService from "../service/user.service.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
 class UserController {
-  static async getUsers(req, res) {
-    try {
-      const users = await UserService.getUsersFromDB();
-      return res.json({ success: true, users });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  static getUsers = asyncHandler(async (req, res) => {
+    const users = await UserService.getUsersFromDB();
+    return res.json({ success: true, users });
+  });
 
-  static async updateUserRole(req, res) {
-    try {
-      const { id } = req.params;
-      const { role } = req.body;
-      const user = await UserService.updateUserRoleInDB(id, role, req.user);
-      return res.json({
-        success: true,
-        message: `User ${user.name} role changed to ${role}`,
-        user,
-      });
-    } catch (error) {
-      const status = error.statusCode || 500;
-      return res
-        .status(status)
-        .json({ success: false, message: error.message });
-    }
-  }
+  static getOfficers = asyncHandler(async (req, res) => {
+    const officers = await UserService.getOfficersFromDB();
+    return res.json({ success: true, users: officers });
+  });
+
+  static createUser = asyncHandler(async (req, res) => {
+    const user = await UserService.createUserInDB(req.body, req.user);
+    return res.status(201).json({ success: true, user });
+  });
+
+  static updateUserRole = asyncHandler(async (req, res) => {
+    const { role, badgeNumber, title } = req.body;
+    const user = await UserService.updateUserRoleInDB(
+      req.params.id,
+      { role, badgeNumber, title },
+      req.user,
+    );
+    return res.json({
+      success: true,
+      message: `User ${user.name} role changed to ${user.role}`,
+      user,
+    });
+  });
+
+  static updateMyProfile = asyncHandler(async (req, res) => {
+    const user = await UserService.updateProfileInDB(req.user._id, req.body);
+    return res.json({ success: true, user });
+  });
 }
 
 export const getUsers = UserController.getUsers;
+export const getOfficers = UserController.getOfficers;
+export const createUser = UserController.createUser;
 export const updateUserRole = UserController.updateUserRole;
+export const updateMyProfile = UserController.updateMyProfile;
 export default UserController;

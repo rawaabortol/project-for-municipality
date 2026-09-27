@@ -2,12 +2,9 @@ import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { useLanguage } from "../../context/LanguageContext";
-import { dbInstance } from "../../utils/axios";
-import axios from "axios";
 import { TRIPOLI_DISTRICTS } from "../../utils/APIConst";
 import {
   HeartPulse,
-  ShieldCheck,
   LogIn,
   UserPlus,
   Mail,
@@ -15,12 +12,8 @@ import {
   User,
   Phone,
   MapPin,
-  Building2,
-  Stethoscope,
   Globe,
   AlertCircle,
-  CheckCircle2,
-  ArrowRight,
 } from "lucide-react";
 
 export const LoginPage: React.FC = () => {
@@ -39,15 +32,10 @@ export const LoginPage: React.FC = () => {
   // Sign Up inputs
   const [signUpName, setSignUpName] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpPhone, setSignUpPhone] = useState("+961 7");
+  const [signUpPhone, setSignUpPhone] = useState("+961 ");
   const [signUpDistrict, setSignUpDistrict] = useState("Al-Tal");
-  const [signUpRole, setSignUpRole] = useState<
-    "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR"
-  >("CITIZEN");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState("");
-
-  const usersCount = dbInstance.users.length;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +52,7 @@ export const LoginPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const ok = await axios.post("http://localhost:3000/api/auth/login",{signInEmail,signInPassword});
-      if (!ok) throw new Error("Invalid credentials");
+      await login(signInEmail, signInPassword);
       showToast(
         language === "ar"
           ? "تم تسجيل الدخول بنجاح! مرحباً بك في نبض طرابلس الصحي."
@@ -103,7 +90,15 @@ export const LoginPage: React.FC = () => {
       );
       return;
     }
-    if (signUpPassword && signUpPassword !== signUpConfirmPassword) {
+    if (signUpPassword.length < 6) {
+      setErrorMsg(
+        language === "ar"
+          ? "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل."
+          : "Password must be at least 6 characters.",
+      );
+      return;
+    }
+    if (signUpPassword !== signUpConfirmPassword) {
       setErrorMsg(
         language === "ar"
           ? "كلمتا المرور غير متطابقتين."
@@ -114,34 +109,25 @@ export const LoginPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const newUser = await register({
-        name: signUpName,
-        email: signUpEmail,
-        phone: signUpPhone,
+      await register({
+        name: signUpName.trim(),
+        email: signUpEmail.trim(),
+        phone: signUpPhone.trim() === "+961 " ? "" : signUpPhone.trim(),
         district: signUpDistrict,
-        role: signUpRole,
-        password: signUpPassword || undefined,
-        title:
-          signUpRole === "HEALTH_OFFICER"
-            ? "Municipal Health Inspector"
-            : signUpRole === "ADMINISTRATOR"
-              ? "Health Directorate Administrator"
-              : "Tripoli Resident",
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`,
+        password: signUpPassword,
       });
-
-      if (!newUser) throw new Error("Registration failed");
 
       showToast(
         language === "ar"
-          ? `تم إنشاء الحساب بنجاح وتسجيل الدخول بدور: ${signUpRole}`
-          : `Account registered successfully! Logged in as: ${signUpRole}`,
+          ? "تم إنشاء حساب المواطن بنجاح وتسجيل الدخول."
+          : "Citizen account registered successfully!",
       );
-    } catch {
+    } catch (err: any) {
       setErrorMsg(
-        language === "ar"
-          ? "فشل إنشاء الحساب. حاول مجدداً."
-          : "Registration failed. Try again.",
+        err?.message ||
+          (language === "ar"
+            ? "فشل إنشاء الحساب. حاول مجدداً."
+            : "Registration failed. Try again."),
       );
     } finally {
       setIsSubmitting(false);
@@ -248,42 +234,6 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Zero Users Notice on Sign-In */}
-          {mode === "signin" && usersCount === 0 && (
-            <div className="p-3.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs space-y-2">
-              <div className="flex items-center gap-2 text-teal-300 font-bold">
-                <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                <span>
-                  {language === "ar"
-                    ? "قاعدة البيانات فارغة تماماً"
-                    : "Database Currently Empty"}
-                </span>
-              </div>
-              <p className="text-slate-300 text-[11px] leading-relaxed">
-                {language === "ar"
-                  ? 'تمت إزالة كافة البيانات والبيانات الوهمية بما فيها المستخدمين. اضغط على "إنشاء حساب" لتسجيل أول حساب لك في قاعدة البيانات واختبار النظام.'
-                  : 'All static mock data and test users have been purged. Click "Sign Up" to register your initial account in the database.'}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("signup");
-                  setErrorMsg("");
-                }}
-                className="w-full py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1"
-              >
-                <span>
-                  {language === "ar"
-                    ? "الانتقال إلى إنشاء حساب جديد"
-                    : "Switch to Create Account"}
-                </span>
-                <ArrowRight
-                  className={`w-3.5 h-3.5 ${isRtl ? "rotate-180" : ""}`}
-                />
-              </button>
-            </div>
-          )}
-
           {/* Sign In Form */}
           {mode === "signin" && (
             <form onSubmit={handleSignIn} className="space-y-4 text-xs">
@@ -386,7 +336,7 @@ export const LoginPage: React.FC = () => {
                     type="tel"
                     value={signUpPhone}
                     onChange={(e) => setSignUpPhone(e.target.value)}
-                    placeholder="+961 70 123456"
+                    placeholder="+961 0 123456"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
                   />
                 </div>
@@ -413,62 +363,6 @@ export const LoginPage: React.FC = () => {
                   ))}
                 </select>
               </div>
-
-              {/* Role Selection for Testing */}
-              {/* <div className="space-y-1">
-                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-                  <span>
-                    {language === "ar" ? "نوع الحساب / الدور" : "Account Role"}
-                  </span>
-                </label> */}
-                {/* <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSignUpRole("CITIZEN")}
-                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                      signUpRole === "CITIZEN"
-                        ? "bg-teal-600/30 border-teal-500 text-teal-200"
-                        : "bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {/* <User className="w-4 h-4" /> */}
-                    {/* <span className="text-[11px] font-bold">
-                      {language === "ar" ? "مواطن" : "Citizen"}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSignUpRole("HEALTH_OFFICER")}
-                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                      signUpRole === "HEALTH_OFFICER"
-                        ? "bg-teal-600/30 border-teal-500 text-teal-200"
-                        : "bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white"
-                    }`}
-                  > */}
-                    {/* <Stethoscope className="w-4 h-4" />
-                    <span className="text-[11px] font-bold">
-                      {language === "ar" ? "مفتش صحي" : "Inspector"}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSignUpRole("ADMINISTRATOR")}
-                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                      signUpRole === "ADMINISTRATOR"
-                        ? "bg-teal-600/30 border-teal-500 text-teal-200"
-                        : "bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    <Building2 className="w-4 h-4" />
-                    <span className="text-[11px] font-bold">
-                      {language === "ar" ? "مدير بلدي" : "Admin"}
-                    </span> */} 
-                  {/* </button>
-                </div> */}
-              {/* </div> */}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">

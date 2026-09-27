@@ -1,20 +1,33 @@
 /**
- * Tripoli Public Health Monitoring System - Data Types & Database Seed Contracts
- * All static mock data has been removed. Data is sourced exclusively from the live database.
+ * Tripoli Public Health Monitoring System - shared data types.
+ * These mirror the server's Mongoose models after normalization (see utils/normalize.ts):
+ * every document exposes `id` (from `_id`) and populated references are flattened.
  */
+
+export type UserRole = "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR";
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ReportStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "VERIFIED"
+  | "IN_INVESTIGATION"
+  | "RESOLVED"
+  | "CLOSED"
+  | "REJECTED";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'CITIZEN' | 'HEALTH_OFFICER' | 'ADMINISTRATOR';
+  role: UserRole;
   phone: string;
   district: string;
   badgeNumber?: string;
   title?: string;
   avatarUrl?: string;
   bio?: string;
-  password?: string;
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface Report {
@@ -40,17 +53,17 @@ export interface Report {
     lng: number;
   };
   affectedCount: number;
-  initialSeverity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  initialSeverity: RiskLevel;
   imageUrl?: string;
   additionalComments?: string;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'VERIFIED' | 'IN_INVESTIGATION' | 'RESOLVED' | 'CLOSED' | 'REJECTED';
+  status: ReportStatus;
   assignedOfficer?: {
     id: string;
     name: string;
     badgeNumber: string;
   };
   riskScore: number;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  riskLevel: RiskLevel;
   riskFactors: {
     severityScore: number;
     affectedPeopleScore: number;
@@ -84,10 +97,10 @@ export interface Investigation {
   findings: string;
   actionsTaken: string;
   recommendations: string;
-  result: 'Confirmed' | 'Not Confirmed' | 'Inconclusive' | 'Resolved';
+  result: "Confirmed" | "Not Confirmed" | "Inconclusive" | "Resolved";
   samplesCollected: string;
   notes: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED";
 }
 
 export interface Cluster {
@@ -103,26 +116,31 @@ export interface Cluster {
   reportNumbers: string[];
   reportCount: number;
   totalAffected: number;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  riskLevel: RiskLevel;
   timeWindowHours: number;
   detectedAt: string;
-  status: 'ACTIVE' | 'INVESTIGATING' | 'CONTAINED' | 'RESOLVED';
+  status: "ACTIVE" | "INVESTIGATING" | "CONTAINED" | "RESOLVED";
 }
 
 export interface Alert {
   id: string;
   alertCode: string;
-  alertType: 'CRITICAL_INCIDENT' | 'CLUSTER_DETECTED' | 'GEOGRAPHIC_SPIKE' | 'CATEGORY_SURGE' | 'UNRESOLVED_TIMEOUT';
+  alertType:
+    | "CRITICAL_INCIDENT"
+    | "CLUSTER_DETECTED"
+    | "GEOGRAPHIC_SPIKE"
+    | "CATEGORY_SURGE"
+    | "UNRESOLVED_TIMEOUT";
   title: string;
   description: string;
   relatedReportId?: string;
   relatedClusterId?: string;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  riskLevel: RiskLevel;
   area: string;
-  status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
-  assignedOfficer: {
+  status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
+  assignedOfficer?: {
     name: string;
-    badgeNumber: string;
+    badgeNumber?: string;
   };
   createdAt: string;
 }
@@ -132,33 +150,66 @@ export interface AppNotification {
   userId: string;
   title: string;
   message: string;
-  type: 'STATUS_UPDATE' | 'CRITICAL_ALERT' | 'CLUSTER_ALERT' | 'ASSIGNMENT' | 'SYSTEM';
+  type: "STATUS_UPDATE" | "CRITICAL_ALERT" | "CLUSTER_ALERT" | "ASSIGNMENT" | "SYSTEM";
   isRead: boolean;
   createdAt: string;
 }
 
-// Pure database state: Zero test users
-export const initialUsers: User[] = [];
+export interface Category {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  baseWeight: number;
+  icon: string;
+  isActive: boolean;
+}
 
-// Public Health Surveillance Categories (Reference Lookup Data)
-export const initialCategories = [
-  { id: 'cat-1', name: 'Food Safety', code: 'FOOD_SAFETY', baseWeight: 10, icon: 'Utensils', description: 'Restaurant hygiene, expired produce, and unregulated food vendors.' },
-  { id: 'cat-2', name: 'Suspected Food Poisoning', code: 'FOOD_POISONING', baseWeight: 14, icon: 'AlertTriangle', description: 'Acute gastrointestinal clusters following consumption from local eateries or banquets.' },
-  { id: 'cat-3', name: 'Water Contamination', code: 'WATER_CONTAMINATION', baseWeight: 15, icon: 'Droplets', description: 'Turbidity, chemical odors, or discolored municipal or tanker water supply.' },
-  { id: 'cat-4', name: 'Unsafe Drinking Water', code: 'UNSAFE_DRINKING_WATER', baseWeight: 15, icon: 'GlassWater', description: 'Bacteriological suspicion in bottled water refill stations or domestic reservoirs.' },
-  { id: 'cat-5', name: 'Sewage Problem', code: 'SEWAGE_PROBLEM', baseWeight: 12, icon: 'Waves', description: 'Ruptured sewer lines, street overflow, and drainage backups.' },
-  { id: 'cat-6', name: 'Garbage Accumulation', code: 'GARBAGE_ACCUMULATION', baseWeight: 8, icon: 'Trash2', description: 'Uncollected municipal refuse piles obstructing pedestrian areas and attracting pests.' },
-  { id: 'cat-7', name: 'Air Pollution', code: 'AIR_POLLUTION', baseWeight: 8, icon: 'Wind', description: 'Toxic generator exhaust emissions, tire burnings, or industrial fumes.' },
-  { id: 'cat-8', name: 'Mosquito Infestation', code: 'MOSQUITO_INFESTATION', baseWeight: 9, icon: 'Bug', description: 'Stagnant wastewater pooling fostering aggressive mosquito breeding vectors.' },
-  { id: 'cat-9', name: 'Rodent/Pest Problem', code: 'RODENT_PEST', baseWeight: 9, icon: 'Rat', description: 'Heavy rat or rodent presence near residential basements and food stalls.' },
-  { id: 'cat-10', name: 'Suspected Disease/Outbreak', code: 'DISEASE_OUTBREAK', baseWeight: 15, icon: 'Biohazard', description: 'Unusual clusters of jaundice, acute watery diarrhea, or rash.' },
-  { id: 'cat-11', name: 'Environmental Hazard', code: 'ENV_HAZARD', baseWeight: 11, icon: 'ShieldAlert', description: 'Chemical spills, medical waste dumping, or construction dust contamination.' },
-  { id: 'cat-12', name: 'Other', code: 'OTHER', baseWeight: 5, icon: 'HelpCircle', description: 'Unspecified public health or sanitation grievance.' }
-];
+export interface AuditLog {
+  id: string;
+  user: string;
+  role: string;
+  action: string;
+  resource: string;
+  details: string;
+  ip: string;
+  time: string;
+}
 
-// Pure database states: Zero mock reports, investigations, clusters, alerts, or notifications
-export const initialReports: Report[] = [];
-export const initialInvestigations: Investigation[] = [];
-export const initialClusters: Cluster[] = [];
-export const initialAlerts: Alert[] = [];
-export const initialNotifications: AppNotification[] = [];
+export interface DashboardStats {
+  totalReports: number;
+  reportsToday: number;
+  reportsThisWeek: number;
+  reportsThisMonth: number;
+  criticalCount: number;
+  highCount: number;
+  underInvestigationCount: number;
+  resolvedCount: number;
+  resolutionRate: number;
+  activeAlerts: number;
+  activeClusters: number;
+  totalInvestigations: number;
+  categoryData: Array<{ name: string; count: number }>;
+  statusData: Array<{ status: string; count: number }>;
+  districtData: Array<{ district: string; count: number }>;
+  riskData: Array<{ level: string; count: number }>;
+}
+
+export const EMPTY_STATS: DashboardStats = {
+  totalReports: 0,
+  reportsToday: 0,
+  reportsThisWeek: 0,
+  reportsThisMonth: 0,
+  criticalCount: 0,
+  highCount: 0,
+  underInvestigationCount: 0,
+  resolvedCount: 0,
+  resolutionRate: 0,
+  activeAlerts: 0,
+  activeClusters: 0,
+  totalInvestigations: 0,
+  categoryData: [],
+  statusData: [],
+  districtData: [],
+  riskData: [],
+};

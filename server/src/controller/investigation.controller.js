@@ -1,49 +1,43 @@
 import InvestigationService from "../service/investigation.service.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
 class InvestigationController {
-  static async getInvestigations(req, res) {
-    try {
-      const { status, reportId } = req.query;
-      const filter = {};
-      if (status) filter.status = status;
-      if (reportId) filter.reportId = reportId;
+  static getInvestigations = asyncHandler(async (req, res) => {
+    const { status, reportId } = req.query;
+    const filter = {};
+    if (status) filter.status = String(status);
+    if (reportId) filter.reportId = String(reportId);
 
-      const investigations =
-        await InvestigationService.getInvestigationsFromDB(filter);
-      return res.json({ success: true, investigations });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
+    const investigations = await InvestigationService.getInvestigationsFromDB(filter);
+    return res.json({ success: true, investigations });
+  });
 
-  static async createInvestigation(req, res) {
-    try {
-      const investigation = await InvestigationService.createInvestigationInDB(
-        req.body,
-        req.user,
-      );
-      return res.status(201).json({ success: true, investigation });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  static createInvestigation = asyncHandler(async (req, res) => {
+    const investigation = await InvestigationService.createInvestigationInDB(req.body, req.user);
+    return res.status(201).json({ success: true, investigation });
+  });
 
-  static async updateInvestigation(req, res) {
-    try {
-      const { id } = req.params;
-      const updated = await InvestigationService.updateInvestigationInDB(
-        id,
-        req.body,
-        req.user,
-      );
-      return res.json({ success: true, investigation: updated });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  static updateInvestigation = asyncHandler(async (req, res) => {
+    const investigation = await InvestigationService.updateInvestigationInDB(
+      req.params.id,
+      req.body,
+      req.user,
+    );
+    return res.json({ success: true, investigation });
+  });
+
+  static finalizeInvestigation = asyncHandler(async (req, res) => {
+    const { report, investigation } = await InvestigationService.finalizeInvestigationInDB(
+      req.params.reportId,
+      req.body,
+      req.user,
+    );
+    return res.json({ success: true, report, investigation });
+  });
 }
 
 export const getInvestigations = InvestigationController.getInvestigations;
 export const createInvestigation = InvestigationController.createInvestigation;
 export const updateInvestigation = InvestigationController.updateInvestigation;
+export const finalizeInvestigation = InvestigationController.finalizeInvestigation;
 export default InvestigationController;

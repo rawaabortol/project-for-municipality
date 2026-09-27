@@ -56,7 +56,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
   const { t, translateDistrict, translateRole, language, isRtl } = useLanguage();
 
   const [name, setName] = useState(currentUser.name || '');
-  const [email, setEmail] = useState(currentUser.email || '');
+  const [email] = useState(currentUser.email || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
   const [district, setDistrict] = useState(currentUser.district || 'Al-Tal');
   const [title, setTitle] = useState(currentUser.title || '');
@@ -76,24 +76,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     setIsSaving(true);
-    const updated = updateProfile({
-      name,
-      email,
-      phone,
-      district,
-      title,
-      bio,
-      avatarUrl
-    });
-    setIsSaving(false);
-
-    showToast(t('profileUpdatedSuccess'));
-    onClose();
+    try {
+      await updateProfile({
+        name: name.trim(),
+        phone: phone.trim(),
+        district,
+        title,
+        bio,
+        avatarUrl
+      });
+      showToast(t('profileUpdatedSuccess'));
+      onClose();
+    } catch (err: any) {
+      showToast(err.message || (language === 'ar' ? 'فشل تحديث الملف الشخصي' : 'Failed to update profile'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -235,9 +238,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                 <input
                   type="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className={`w-full ${isRtl ? 'pr-9 pl-3' : 'pl-9 pr-3'} py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-xs focus:outline-none focus:border-teal-500`}
-                  required
+                  readOnly
+                  title={language === 'ar' ? 'لا يمكن تغيير البريد الإلكتروني' : 'Email is your login and cannot be changed'}
+                  className={`w-full ${isRtl ? 'pr-9 pl-3' : 'pl-9 pr-3'} py-2 rounded-xl bg-slate-800/60 border border-slate-700 text-slate-400 text-xs cursor-not-allowed focus:outline-none`}
                 />
               </div>
             </div>

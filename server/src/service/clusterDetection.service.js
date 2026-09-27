@@ -3,6 +3,10 @@ import { RISK_LEVELS, ALERT_TYPES } from "../constant/index.js";
 import Cluster from "../models/Cluster.js";
 import Report from "../models/Report.js";
 import Alert from "../models/Alert.js";
+import NotificationService from "./notification.service.js";
+import { httpError } from "../middleware/errorHandler.js";
+
+const CLUSTER_STATUSES = ["ACTIVE", "INVESTIGATING", "CONTAINED", "RESOLVED"];
 
 class ClusterDetectionService {
   static detectClusters(reports = []) {
@@ -148,7 +152,7 @@ class ClusterDetectionService {
         return [];
       }
 
-      const detected = this.detectClusters(activeReports);
+      const detected = ClusterDetectionService.detectClusters(activeReports);
       const savedClusters = [];
 
       for (const clusterData of detected) {
@@ -192,6 +196,12 @@ class ClusterDetectionService {
             area: savedCluster.district,
             status: "ACTIVE",
           });
+
+          await NotificationService.notifyStaff({
+            title: `Cluster detected: ${savedCluster.categoryName}`,
+            message: `${savedCluster.reportCount} related reports in ${savedCluster.district} (~${savedCluster.totalAffected} affected).`,
+            type: "CLUSTER_ALERT",
+          });
         }
 
         savedClusters.push(savedCluster);
@@ -206,17 +216,20 @@ class ClusterDetectionService {
 
   static async getActiveClustersFromDB() {
     return Cluster.find({ status: { $in: ["ACTIVE", "INVESTIGATING"] } })
-      .populate("reportIds")
+      .populate("reportIds", "reportNumber")
       .sort({ updatedAt: -1 })
       .lean();
   }
 
   static async updateClusterStatusInDB(clusterId, status) {
-    return Cluster.findByIdAndUpdate(
+    if (!CLUSTER_STATUSES.includes(status)) throw httpError(400, `Invalid cluster status: ${status}`);
+    const cluster = await Cluster.findByIdAndUpdate(
       clusterId,
       { status },
       { new: true },
-    ).populate("reportIds");
+    ).populate("reportIds", "reportNumber");
+    if (!cluster) throw httpError(404, "Cluster not found");
+    return cluster;
   }
 }
 

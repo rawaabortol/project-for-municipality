@@ -1,105 +1,49 @@
-import { calculateReportRisk } from "../utils/riskEngine";
-import { dbInstance } from "../utils/axios";
-import { Report } from "../utils/sampleData";
+import { apiClient } from "../utils/axios";
+import { toReport } from "../utils/normalize";
+import { Report, ReportStatus, RiskLevel } from "../utils/sampleData";
 
-/**
- * Browser-safe report service.
- */
+export interface NewReportPayload {
+  category: { name: string; code: string };
+  title: string;
+  description: string;
+  incidentDate?: string;
+  location: { address: string; district: string; lat: number; lng: number };
+  affectedCount: number;
+  initialSeverity: RiskLevel;
+  imageUrl?: string;
+  additionalComments?: string;
+}
+
 export const reportService = {
-  getReports: (): Report[] => {
-    return [...dbInstance.reports];
+  /** Staff receive all reports; citizens only their own (enforced server-side). */
+  getReports: async (params: Record<string, string | number> = {}): Promise<Report[]> => {
+    const { data } = await apiClient.get("/reports", { params: { limit: 500, ...params } });
+    return data.reports.map(toReport);
   },
 
-  getReportById: (id: string): Report | undefined => {
-    return dbInstance.reports.find(
-      (r) => r.id === id || r.reportNumber === id || (r as any)._id === id,
-    );
+  getReportById: async (id: string): Promise<Report> => {
+    const { data } = await apiClient.get(`/reports/${id}`);
+    return toReport(data.report);
   },
 
-  getCitizenReports: (userId: string): Report[] => {
-    return dbInstance.reports.filter((r) => r.citizen.userId === userId);
+  createReport: async (payload: NewReportPayload): Promise<Report> => {
+    const { data } = await apiClient.post("/reports", payload);
+    return toReport(data.report);
   },
 
-  createReport: (reportData: any, currentUser: any): Report => {
-    // 1. Calculate risk factors using the riskEngine
-    const risk = calculateReportRisk(reportData, dbInstance.reports);
-
-    // 2. Format conforming to Mongoose reportSchema
-    const count = dbInstance.reports.length;
-    const reportNumber = `TRP-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
-    const severity = (
-      ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(reportData.initialSeverity)
-        ? reportData.initialSeverity
-        : ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(reportData.severity)
-          ? reportData.severity
-          : "MEDIUM"
-    ) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-
-    const newReport: Report = {
-      id: `rep_${Date.now()}`,
-      reportNumber,
-      citizen: {
-        userId: currentUser?.id || currentUser?._id || "anonymous",
-        name:
-          currentUser?.name || reportData.citizen?.name || "Citizen Reporter",
-        phone: currentUser?.phone || reportData.citizen?.phone || "",
-        email: currentUser?.email || reportData.citizen?.email || "",
-      },
-      category:
-        typeof reportData.category === "object"
-          ? reportData.category
-          : {
-              name: reportData.category || "General Sanitary",
-              code: "SAN-GEN",
-            },
-      title: reportData.title,
-      description: reportData.description,
-      incidentDate: reportData.incidentDate || new Date().toISOString(),
-      location: {
-        address:
-          reportData.location?.address ||
-          reportData.location?.streetAddress ||
-          "Tripoli",
-        district: reportData.location?.district || "Al-Tal",
-        lat: Number(reportData.location?.lat) || 34.4367,
-        lng: Number(reportData.location?.lng) || 35.8497,
-      },
-      affectedCount: Number(reportData.affectedCount) || 1,
-      initialSeverity: severity,
-      imageUrl: reportData.images?.[0] || reportData.imageUrl || "",
-      additionalComments: reportData.additionalComments || "",
-      status: "SUBMITTED",
-      riskScore: risk.riskScore,
-      riskLevel: risk.riskLevel as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-      riskFactors: risk.factors,
-      statusHistory: [
-        {
-          oldStatus: "NONE",
-          newStatus: "SUBMITTED",
-          changedBy: currentUser?.name || "Citizen Reporter",
-          role: currentUser?.role || "CITIZEN",
-          timestamp: new Date().toISOString(),
-          comment:
-            "Initial incident report submitted into municipal surveillance.",
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    };
-
-    return dbInstance.addReport(newReport, currentUser);
+  updateStatus: async (reportId: string, newStatus: ReportStatus, comment = ""): Promise<Report> => {
+    const { data } = await apiClient.put(`/reports/${reportId}/status`, { newStatus, comment });
+    return toReport(data.report);
   },
 
-  updateStatus: (
-    reportId: string,
-    newStatus: any,
-    comment: string,
-    user: any,
-  ): Report | null => {
-    return dbInstance.updateReportStatus(reportId, newStatus, comment, user);
+  assignOfficer: async (reportId: string, officerId: string): Promise<Report> => {
+    const { data } = await apiClient.put(`/reports/${reportId}/assign`, { officerId });
+    return toReport(data.report);
   },
 
-  assignOfficer: (reportId: string, officer: any, user: any): Report | null => {
-    return dbInstance.assignOfficer(reportId, officer, user);
+  reassessAllRisks: async (): Promise<number> => {
+    const { data } = await apiClient.post("/reports/reassess-risk");
+    return data.count;
   },
 };
 

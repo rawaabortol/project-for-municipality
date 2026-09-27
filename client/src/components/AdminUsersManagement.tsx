@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { userService } from '../../services/userService';
+import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -33,7 +34,8 @@ export const AdminUsersManagement: React.FC = () => {
   } = useLanguage();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState<User[]>(dbInstance.users);
+  const { refresh: refreshSharedData } = useData();
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
 
@@ -41,7 +43,7 @@ export const AdminUsersManagement: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('+961 7');
+  const [newPhone, setNewPhone] = useState('+961 ');
   const [newDistrict, setNewDistrict] = useState('Al-Tal');
   const [newPassword, setNewPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -53,17 +55,23 @@ export const AdminUsersManagement: React.FC = () => {
   const [assignTitle, setAssignTitle] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
 
+  const loadUsers = async () => {
+    setIsLoading(true);
+    try {
+      setUsers(await userService.getUsers());
+    } catch (err: any) {
+      showToast(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 450);
-    return () => clearTimeout(timer);
+    loadUsers();
   }, []);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setUsers([...dbInstance.users]);
-      setIsLoading(false);
-    }, 400);
+    loadUsers();
   };
 
   // Open Role Assignment Modal
@@ -83,90 +91,69 @@ export const AdminUsersManagement: React.FC = () => {
     }
   };
 
-  const handleConfirmRoleAssignment = (e: React.FormEvent) => {
+  const handleConfirmRoleAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignmentUser) return;
 
-    if (currentUser.role !== 'ADMINISTRATOR') {
-      showToast(
-        language === 'ar'
-          ? 'خطأ: فقط إدارة المنظومة مخولة بتعيين الأدوار للمواطنين.'
-          : 'Error: Only administrators can assign roles to citizens.'
-      );
-      return;
-    }
-
     setIsAssigning(true);
-    const result = dbInstance.updateUserRole(
-      assignmentUser.id,
-      assignRole,
-      currentUser,
-      assignBadge,
-      assignTitle
-    );
-
-    setIsAssigning(false);
-
-    if (result.success) {
-      setUsers([...dbInstance.users]);
+    try {
+      const updated = await userService.updateRole(assignmentUser.id, assignRole, assignBadge, assignTitle);
+      setUsers(prev => prev.map(u => (u.id === updated.id ? updated : u)));
+      refreshSharedData();
       showToast(
         language === 'ar'
           ? `تم تحديث صلاحيات ${assignmentUser.name} بنجاح إلى: ${translateRole(assignRole)}.`
           : `Role assigned successfully: ${assignmentUser.name} is now ${translateRole(assignRole)}.`
       );
       setAssignmentUser(null);
-    } else {
-      showToast(result.message || 'Role update failed');
+    } catch (err: any) {
+      showToast(err.message || 'Role update failed');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
-  // Register New Citizen (Strictly Citizen Only)
-  const handleCreateCitizen = (e: React.FormEvent) => {
+  // Register New Citizen (server always creates CITIZEN accounts; roles are assigned afterwards)
+  const handleCreateCitizen = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) {
       showToast(language === 'ar' ? 'يرجى إدخال الاسم والبريد الإلكتروني.' : 'Please enter name and email.');
       return;
     }
-
-    // Check if email already registered
-    const exists = dbInstance.users.some(u => u.email.toLowerCase() === newEmail.trim().toLowerCase());
-    if (exists) {
-      showToast(language === 'ar' ? 'هذا البريد الإلكتروني مسجل مسبقاً.' : 'Email already registered.');
+    if (newPassword.length < 6) {
+      showToast(language === 'ar' ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
       return;
     }
 
     setIsCreating(true);
-    // Security Enforcement: Created strictly as CITIZEN (autoLogin = false to keep admin logged in)
-    const newCitizen = dbInstance.registerUser(
-      {
+    try {
+      const newCitizen = await userService.createCitizen({
         name: newName.trim(),
         email: newEmail.trim(),
-        phone: newPhone.trim(),
+        phone: newPhone.trim() === '+961 ' ? '' : newPhone.trim(),
         district: newDistrict,
-        role: 'CITIZEN', // STRICT: Cannot be employee on creation
-        title: 'Resident Reporter',
-        password: newPassword || 'password123',
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`
-      },
-      false
-    );
+        password: newPassword
+      });
+      setUsers(prev => [newCitizen, ...prev]);
+      setShowCreateModal(false);
 
-    setIsCreating(false);
-    setUsers([...dbInstance.users]);
-    setShowCreateModal(false);
+      // Reset form
+      setNewName('');
+      setNewEmail('');
+      setNewPhone('+961 ');
+      setNewDistrict('Al-Tal');
+      setNewPassword('');
 
-    // Reset form
-    setNewName('');
-    setNewEmail('');
-    setNewPhone('+961 7');
-    setNewDistrict('Al-Tal');
-    setNewPassword('');
-
-    showToast(
-      language === 'ar'
-        ? `تم تسجيل المواطن "${newCitizen.name}" بنجاح! يمكنك الآن تعيين دور أو شارة له من الجدول.`
-        : `Citizen "${newCitizen.name}" registered! You can now assign them a role or badge from the directory.`
-    );
+      showToast(
+        language === 'ar'
+          ? `تم تسجيل المواطن "${newCitizen.name}" بنجاح! يمكنك الآن تعيين دور أو شارة له من الجدول.`
+          : `Citizen "${newCitizen.name}" registered! You can now assign them a role or badge from the directory.`
+      );
+    } catch (err: any) {
+      showToast(err.message);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // Restrict access if not administrator

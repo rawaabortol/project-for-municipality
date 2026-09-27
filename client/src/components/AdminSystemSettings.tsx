@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { clusterService } from '../../services/clusterService';
+import { reportService } from '../../services/reportService';
 import { useNotifications } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +11,6 @@ import {
   Clock,
   RefreshCw,
   Save,
-  RotateCcw,
   CheckCircle2,
   AlertTriangle,
   Info,
@@ -60,55 +60,38 @@ export const AdminSystemSettings: React.FC<AdminSystemSettingsProps> = ({ onRefr
     );
   };
 
-  const handleTriggerClusterScan = () => {
+  const handleTriggerClusterScan = async () => {
     setIsScanning(true);
-    setTimeout(() => {
-      const detected = dbInstance.runClusterScan();
+    try {
+      const count = await clusterService.triggerScan();
+      onRefresh?.();
+      showToast(
+        language === 'ar'
+          ? `اكتمل مسح البؤر الوبائية بنجاح. تم رصد وتحديث ${count} بؤرة وبائية نشطة في طرابلس.`
+          : `Cluster detection completed. ${count} active surveillance clusters detected.`
+      );
+    } catch (err: any) {
+      showToast(err.message);
+    } finally {
       setIsScanning(false);
-      onRefresh?.();
-      showToast(
-        language === 'ar'
-          ? `اكتمل مسح البؤر الوبائية بنجاح. تم رصد وتحديث ${detected.length} بؤرة وبائية نشطة في طرابلس.`
-          : `Cluster detection completed. ${detected.length} active surveillance clusters detected.`
-      );
-    }, 600);
+    }
   };
 
-  const handleRecalculateRiskScores = () => {
+  // Re-runs the server's risk engine over every open report (persists a RiskAssessment per report)
+  const handleRecalculateRiskScores = async () => {
     setIsRecalculating(true);
-    setTimeout(() => {
-      // Re-evaluate risk scores across all reports
-      dbInstance.reports.forEach((rep, idx) => {
-        const sevVal = rep.initialSeverity === 'CRITICAL' ? severityMax : rep.initialSeverity === 'HIGH' ? severityMax * 0.7 : rep.initialSeverity === 'MEDIUM' ? severityMax * 0.4 : severityMax * 0.2;
-        const affVal = Math.min(affectedMax, (rep.affectedCount / 25) * affectedMax);
-        const catVal = Math.min(categoryMax, (rep.category?.code ? 10 : 5));
-        const recVal = recencyMax * 0.8;
-        const clusterVal = clusterMax * 0.7;
-
-        const newScore = Math.min(100, Math.round(sevVal + affVal + catVal + recVal + clusterVal));
-        rep.riskScore = newScore;
-        rep.riskLevel = newScore >= 76 ? 'CRITICAL' : newScore >= 51 ? 'HIGH' : newScore >= 26 ? 'MEDIUM' : 'LOW';
-      });
-      dbInstance.persistAll();
+    try {
+      const count = await reportService.reassessAllRisks();
+      onRefresh?.();
+      showToast(
+        language === 'ar'
+          ? `تمت إعادة احتساب درجات الخطورة لـ ${count} بلاغاً مفتوحاً.`
+          : `Risk scores recalculated for ${count} open reports.`
+      );
+    } catch (err: any) {
+      showToast(err.message);
+    } finally {
       setIsRecalculating(false);
-      onRefresh?.();
-      showToast(
-        language === 'ar'
-          ? 'تمت إعادة معايرة واحتساب درجات الخطورة لجميع البلاغات المسجلة في طرابلس.'
-          : 'All report risk scores recalculated using latest formula parameters.'
-      );
-    }, 700);
-  };
-
-  const handleResetBaseline = () => {
-    if (window.confirm(language === 'ar' ? 'هل أنت متأكد من إعادة ضبط البيانات إلى الحالة المرجعية الأساسية؟' : 'Are you sure you want to reset all data to the certified baseline?')) {
-      dbInstance.resetDemoData();
-      onRefresh?.();
-      showToast(
-        language === 'ar'
-          ? 'تمت استعادة بيانات النظام المرجعية المعتمدة لطرابلس.'
-          : 'Database reset to certified Tripoli baseline.'
-      );
     }
   };
 
@@ -137,15 +120,6 @@ export const AdminSystemSettings: React.FC<AdminSystemSettingsProps> = ({ onRefr
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={handleResetBaseline}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>{language === 'ar' ? 'إعادة ضبط البيانات' : 'Reset Baseline'}</span>
-          </button>
-        </div>
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">

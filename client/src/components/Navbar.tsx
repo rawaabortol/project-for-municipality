@@ -47,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isVisible = true,
   onToggleVisibility
 }) => {
-  const { currentUser, switchRole, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, showToast } = useNotifications();
   const { language, setLanguage, t, isRtl, translateRole, translateDistrict } = useLanguage();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -90,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         isVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : '-translate-y-full opacity-0 pointer-events-none'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative">
+      <div className="w-full px-3 sm:px-6 lg:px-8 relative">
         <div className="flex items-center justify-between h-16 gap-2">
           {/* Left: Mobile Menu Toggle & Brand */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -236,16 +236,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Sign In / Sign Up Direct Quick Button */}
-            <button
-              onClick={() => onOpenAuthModal?.('signin')}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors shadow-sm"
-              title={language === 'ar' ? 'تسجيل الدخول / إنشاء حساب جديد' : 'Sign In / Register'}
-            >
-              <LogIn className="w-3.5 h-3.5 text-teal-400" />
-              <span>{language === 'ar' ? 'دخول / تسجيل' : 'Login / Register'}</span>
-            </button>
-
             {/* User Profile & Account Menu */}
             <div className="relative">
               <button
@@ -369,70 +359,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
 
-                  {/* Switch Demo Accounts / Roles */}
-                  <div className="px-2 py-1 text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                    {t('demoRoleSwitcher')}
-                  </div>
-
-                  <div className="space-y-1 mt-1">
-                    {/* Citizen Account */}
-                    <button
-                      onClick={() => {
-                        switchRole('CITIZEN', 'usr-cit-1');
-                        setShowRoleMenu(false);
-                      }}
-                      className={`w-full text-left rtl:text-right p-2 rounded-xl flex items-center gap-2.5 transition-colors ${
-                        currentUser.role === 'CITIZEN' ? 'bg-blue-600/20 border border-blue-500/40 text-blue-300' : 'hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
-                        {language === 'ar' ? 'مواطن' : 'CIT'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-100 truncate">{language === 'ar' ? 'المواطن: رامي حداد' : 'Citizen: Rami Haddad'}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{language === 'ar' ? 'حي التل • إبلاغ ومتابعة' : 'Al-Tal District • Report'}</div>
-                      </div>
-                    </button>
-
-                    {/* Health Officer Account */}
-                    <button
-                      onClick={() => {
-                        switchRole('HEALTH_OFFICER', 'usr-off-1');
-                        setShowRoleMenu(false);
-                      }}
-                      className={`w-full text-left rtl:text-right p-2 rounded-xl flex items-center gap-2.5 transition-colors ${
-                        currentUser.role === 'HEALTH_OFFICER' ? 'bg-teal-600/20 border border-teal-500/40 text-teal-300' : 'hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs">
-                        {language === 'ar' ? 'مراقب' : 'OFF'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-100 truncate">{language === 'ar' ? 'د. طارق الحج' : 'Officer: Dr. Tariq Al-Hajj'}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{language === 'ar' ? 'رئيس الترصد الوبائي • كشف وفرز' : 'Epidemiology Lead • Triage'}</div>
-                      </div>
-                    </button>
-
-                    {/* Administrator Account */}
-                    <button
-                      onClick={() => {
-                        switchRole('ADMINISTRATOR', 'usr-admin-1');
-                        setShowRoleMenu(false);
-                      }}
-                      className={`w-full text-left rtl:text-right p-2 rounded-xl flex items-center gap-2.5 transition-colors ${
-                        currentUser.role === 'ADMINISTRATOR' ? 'bg-purple-600/20 border border-purple-500/40 text-purple-300' : 'hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs">
-                        {language === 'ar' ? 'إدارة' : 'ADM'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-100 truncate">{language === 'ar' ? 'د. نبيل صباغ' : 'Admin: Dr. Nabil Sabbagh'}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{language === 'ar' ? 'مدير الرقابة الصحية • تحكم كامل' : 'Municipal Health Director'}</div>
-                      </div>
-                    </button>
-                  </div>
-
                   {/* Sign Out Button */}
                   <div className="pt-2 mt-2 border-t border-slate-800">
                     <button
@@ -450,19 +376,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Centered Pull-Up Handle on bottom border */}
-      {onToggleVisibility && (
-        <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-auto">
-          <button
-            onClick={onToggleVisibility}
-            className="flex items-center justify-center px-4 py-0.5 rounded-b-lg bg-slate-900/95 hover:bg-slate-800/95 border-b border-x border-slate-700/80 hover:border-teal-500/80 text-slate-400 hover:text-teal-300 shadow-md transition-all group cursor-pointer"
-            title={language === 'ar' ? 'طي الشريط العلوي (Alt+N)' : 'Slide up navigation header (Alt+N)'}
-            aria-label="Slide up navigation header"
-          >
-            <ChevronUp className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform text-slate-400 group-hover:text-teal-300" />
-          </button>
-        </div>
-      )}
     </header>
   );
 };

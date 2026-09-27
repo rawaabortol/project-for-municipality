@@ -3,7 +3,9 @@ import { Report } from '../../utils/sampleData';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
+import { reportService } from '../../services/reportService';
+import { investigationService } from '../../services/investigationService';
 import { getRiskColor, getStatusBadge, formatDateTime } from '../../utils/helper';
 import {
   X,
@@ -41,6 +43,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
 }) => {
   const { currentUser } = useAuth();
   const { showToast } = useNotifications();
+  const { officers } = useData();
   const {
     t,
     translateCategory,
@@ -115,107 +118,89 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
 
   const currentStepIdx = steps.findIndex(s => s.key === report.status);
 
-  // One-way forward step handler
-  const handleAdvanceStep = (targetStatus: string, comment?: string) => {
+  // Runs a server mutation, then refreshes shared data; surfaces the server's error message on failure
+  const runAction = async (action: () => Promise<unknown>, successMsg: string): Promise<boolean> => {
     setIsUpdating(true);
-    dbInstance.updateReportStatus(
-      report.id,
-      targetStatus,
-      comment || `Advanced forward to ${targetStatus} as per inspection protocol.`,
-      currentUser
-    );
+    try {
+      await action();
+      showToast(successMsg);
+      onRefresh();
+      return true;
+    } catch (err: any) {
+      showToast(err.message || (language === 'ar' ? 'فشلت العملية' : 'Action failed'));
+      return false;
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
-    showToast(
+  // One-way forward step handler
+  const handleAdvanceStep = (targetStatus: Report['status'], comment?: string) => {
+    runAction(
+      () => reportService.updateStatus(
+        report.id,
+        targetStatus,
+        comment || `Advanced forward to ${targetStatus} as per inspection protocol.`
+      ),
       language === 'ar'
         ? `تم تقديم حالة البلاغ #${report.reportNumber} إلى: ${translateStatus(targetStatus)}`
         : `Report #${report.reportNumber} moved forward to: ${translateStatus(targetStatus)}`
     );
-
-    setIsUpdating(false);
-    onRefresh();
   };
 
-  // Launch Field Investigation (Strictly from VERIFIED -> IN_INVESTIGATION)
+  // Launch Field Investigation (VERIFIED -> IN_INVESTIGATION happens when the investigation record is saved)
   const handleLaunchInvestigation = () => {
-    setIsUpdating(true);
-    dbInstance.updateReportStatus(
-      report.id,
-      'IN_INVESTIGATION',
-      `Field investigation dispatched to ${currentUser.name} (${currentUser.badgeNumber || 'Inspector'}).`,
-      currentUser
-    );
-    setIsUpdating(false);
-    onRefresh();
     onOpenInvestigation(report);
   };
 
   // Finalize Inspection (Strictly from IN_INVESTIGATION -> RESOLVED)
-  const handleConfirmFinalize = (e: React.FormEvent) => {
+  const handleConfirmFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUpdating(true);
-
-    dbInstance.finalizeInvestigation(
-      report.id,
-      {
+    const ok = await runAction(
+      () => investigationService.finalize(report.id, {
         findings: finalFindings || (language === 'ar' ? 'تم استكمال الفحص والتأكد من إزالة ومعالجة الضرر الصحي.' : 'Remediation inspection completed and hazard contained.'),
         actionsTaken: finalActions || (language === 'ar' ? 'تم اتخاذ تدابير المعالجة والتطهير البلدية اللازمة.' : 'Municipal remediation and sanitization completed.'),
         recommendations: finalRecommendations || (language === 'ar' ? 'متابعة دورية للتأكد من استقرار الوضع الصحي.' : 'Routine monitoring scheduled.'),
         result: finalResult,
         notes: finalNotes || 'Inspection finalized and incident remediated.'
-      },
-      currentUser
-    );
-
-    showToast(
+      }),
       language === 'ar'
         ? `تم إنهاء التفتيش ومعالجة البلاغ #${report.reportNumber} بنجاح!`
         : `Field inspection finalized! Report #${report.reportNumber} is now RESOLVED.`
     );
-
-    setShowFinalizePanel(false);
-    setIsUpdating(false);
-    onRefresh();
+    if (ok) setShowFinalizePanel(false);
   };
 
   // Reject Report (Only allowed before RESOLVED/CLOSED)
-  const handleConfirmReject = (e: React.FormEvent) => {
+  const handleConfirmReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectionReason.trim()) return;
 
-    setIsUpdating(true);
-    dbInstance.updateReportStatus(
-      report.id,
-      'REJECTED',
-      `Report rejected / dismissed: ${rejectionReason}`,
-      currentUser
-    );
-
-    showToast(
+    const ok = await runAction(
+      () => reportService.updateStatus(report.id, 'REJECTED', `Report rejected / dismissed: ${rejectionReason}`),
       language === 'ar'
         ? `تم رفض البلاغ #${report.reportNumber}.`
         : `Report #${report.reportNumber} marked as REJECTED.`
     );
-
-    setShowRejectPanel(false);
-    setIsUpdating(false);
-    onRefresh();
+    if (ok) {
+      setShowRejectPanel(false);
+      setRejectionReason('');
+    }
   };
 
-  const handleAssignOfficer = () => {
-    if (!selectedOfficerId) return;
-    const off = dbInstance.users.find(u => u.id === selectedOfficerId);
+  const handleAssignOfficer = async () => {
+    const off = officers.find(u => u.id === selectedOfficerId);
     if (!off) return;
-    dbInstance.assignOfficer(report.id, off, currentUser);
-    showToast(
+    const ok = await runAction(
+      () => reportService.assignOfficer(report.id, off.id),
       language === 'ar'
         ? `تم تكليف المراقب ${off.name} بالبلاغ #${report.reportNumber}`
         : `Officer ${off.name} assigned to #${report.reportNumber}`
     );
-    setSelectedOfficerId('');
-    onRefresh();
+    if (ok) setSelectedOfficerId('');
   };
 
-  const healthOfficers = dbInstance.users.filter(u => u.role === 'HEALTH_OFFICER');
+  const healthOfficers = officers;
 
   const localizedTitle = translateTitle(report.title, report.category.name, report.location.district);
   const localizedDesc = translateDescription(report.description, report.category.name, report.location.district);

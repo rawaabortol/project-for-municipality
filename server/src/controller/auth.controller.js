@@ -1,9 +1,9 @@
-import UserService from "../service/auth.service.js";
+import AuthService from "../service/auth.service.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 
 class AuthController {
-  static registerRefugeeController = asyncHandler(async (req, res) => {
-    const { user, token } = await UserService.register(req.body);
+  static register = asyncHandler(async (req, res) => {
+    const { user, token } = await AuthService.register(req.body);
     return res.status(201).json({
       success: true,
       message: "User registered successfully",
@@ -11,24 +11,21 @@ class AuthController {
     });
   });
 
-  static async login(req, res) {
-    try {
-      const { user, token } = await UserService.login(req.body);
-      return res.status(200).json({
-        success: true,
-        message: "Login successful",
-        data: { user, token },
-      });
-    } catch (err) {
-      return res.status(err.statusCode || 500).json({
-        success: false,
-        message: err.message || "Internal server error",
-      });
-    }
-  }
+  static login = asyncHandler(async (req, res) => {
+    const { user, token } = await AuthService.login(req.body);
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: { user, token },
+    });
+  });
+
+  static me = asyncHandler(async (req, res) => {
+    return res.json({ success: true, data: { user: req.user } });
+  });
 }
 
-export const registerRefugeeController =
-  AuthController.registerRefugeeController;
+export const register = AuthController.register;
 export const login = AuthController.login;
+export const me = AuthController.me;
 export default AuthController;

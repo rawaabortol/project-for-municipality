@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { useLanguage } from "../../context/LanguageContext";
-import { dbInstance } from "../../utils/axios";
+import { useData } from "../../context/DataContext";
+import { reportService } from "../../services/reportService";
 import { calculateReportRisk } from "../../utils/riskEngine";
 import { TRIPOLI_DISTRICTS, TRIPOLI_COORDINATES } from "../../utils/APIConst";
 import { TripoliMap } from "./TripoliMap";
@@ -29,7 +29,6 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { currentUser } = useAuth();
   const { showToast } = useNotifications();
   const {
     t,
@@ -42,10 +41,10 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     isRtl,
   } = useLanguage();
 
-  const categories = dbInstance.categories;
+  const { categories, reports, refresh } = useData();
 
   // Form State
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || "cat-1");
+  const [categoryId, setCategoryId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [district, setDistrict] = useState("Al-Tal");
@@ -74,8 +73,9 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       incidentDate: new Date().toISOString(),
       location: { lat, lng, district, address },
     };
-    return calculateReportRisk(draft, dbInstance.reports);
+    return calculateReportRisk(draft, reports);
   }, [
+    reports,
     selectedCategoryObj,
     initialSeverity,
     affectedCount,
@@ -97,7 +97,16 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setAffectedCount(1);
+    setInitialSeverity("MEDIUM");
+    setAdditionalComments("");
+    setImageUrl("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setErrorMsg(
@@ -116,12 +125,18 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       return;
     }
 
+    if (!selectedCategoryObj) {
+      setErrorMsg(
+        language === "ar" ? "يرجى اختيار فئة البلاغ." : "Please select a category.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg("");
 
     try {
-      const created = dbInstance.addReport(
-        {
+      const created = await reportService.createReport({
           category: {
             name: selectedCategoryObj.name,
             code: selectedCategoryObj.code,
@@ -139,16 +154,16 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
           initialSeverity,
           imageUrl: imageUrl || undefined,
           additionalComments,
-        },
-        currentUser,
-      );
+      });
 
       showToast(
         language === "ar"
           ? `تم تسجيل البلاغ بنجاح #${created.reportNumber}! تقييم الخطورة: ${created.riskScore} (${translateRisk(created.riskLevel)})`
           : `Incident #${created.reportNumber} registered! Risk Score: ${created.riskScore} (${created.riskLevel})`,
       );
+      await refresh();
       if (onSuccess) onSuccess();
+      resetForm();
       onClose();
     } catch (err: any) {
       setErrorMsg(
@@ -212,7 +227,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                   {t("categoryCol")} *
                 </label>
                 <select
-                  value={categoryId}
+                  value={selectedCategoryObj?.id || ""}
                   onChange={(e) => setCategoryId(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-teal-500 text-xs"
                 >

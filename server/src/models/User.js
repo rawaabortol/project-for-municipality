@@ -37,6 +37,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    title: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+      default: ''
+    },
     avatar: {
       type: String,
       default: ''

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Report, Investigation } from '../../utils/sampleData';
-import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
+import { investigationService } from '../../services/investigationService';
 import {
   X,
   Stethoscope,
@@ -31,8 +31,8 @@ export const InvestigationModal: React.FC<InvestigationModalProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { currentUser } = useAuth();
   const { showToast } = useNotifications();
+  const { investigations } = useData();
   const {
     t,
     translateCategory,
@@ -46,7 +46,10 @@ export const InvestigationModal: React.FC<InvestigationModalProps> = ({
   } = useLanguage();
 
   // Look for existing investigation on this report if any
-  const existingInv = report ? dbInstance.investigations.find(i => i.reportId === report.id || i.reportNumber === report.reportNumber) : undefined;
+  const existingInv = report
+    ? investigations.find(i => i.reportId === report.id && i.status !== 'COMPLETED') ||
+      investigations.find(i => i.reportId === report.id)
+    : undefined;
 
   const [findings, setFindings] = useState(
     existingInv
@@ -104,7 +107,7 @@ export const InvestigationModal: React.FC<InvestigationModalProps> = ({
     return true;
   };
 
-  const handleSaveProgress = (e?: React.FormEvent) => {
+  const handleSaveProgress = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!validateInputs()) return;
 
@@ -112,20 +115,15 @@ export const InvestigationModal: React.FC<InvestigationModalProps> = ({
     setErrorMsg('');
 
     try {
-      dbInstance.createInvestigation(
-        {
-          reportId: report.id,
-          reportNumber: report.reportNumber,
-          findings,
-          actionsTaken,
-          recommendations,
-          result,
-          samplesCollected,
-          notes,
-          status: invStatus === 'COMPLETED' ? 'IN_PROGRESS' : invStatus
-        },
-        currentUser
-      );
+      await investigationService.saveInvestigation(report.id, {
+        findings,
+        actionsTaken,
+        recommendations,
+        result,
+        samplesCollected,
+        notes,
+        status: invStatus === 'COMPLETED' ? 'IN_PROGRESS' : invStatus
+      });
 
       showToast(
         language === 'ar'
@@ -141,25 +139,26 @@ export const InvestigationModal: React.FC<InvestigationModalProps> = ({
     }
   };
 
-  const handleFinalizeInspection = () => {
+  const handleFinalizeInspection = async () => {
     if (!validateInputs()) return;
 
     setIsSaving(true);
     setErrorMsg('');
 
     try {
-      dbInstance.finalizeInvestigation(
-        report.id,
-        {
-          findings,
-          actionsTaken,
-          recommendations: recommendations || (language === 'ar' ? 'استمرار الرقابة الدورية وتكثيف سحب العينات' : 'Continuous routine surveillance & swab monitoring'),
-          result: result === 'Inconclusive' ? 'Resolved' : result,
-          samplesCollected,
-          notes: notes || (language === 'ar' ? 'تم إنهاء التفتيش ومعالجة المخاطر بالكامل' : 'Field inspection concluded and hazards remediated')
-        },
-        currentUser
-      );
+      const closingData = {
+        findings,
+        actionsTaken,
+        recommendations: recommendations || (language === 'ar' ? 'استمرار الرقابة الدورية وتكثيف سحب العينات' : 'Continuous routine surveillance & swab monitoring'),
+        result: result === 'Inconclusive' ? 'Resolved' as const : result,
+        samplesCollected,
+        notes: notes || (language === 'ar' ? 'تم إنهاء التفتيش ومعالجة المخاطر بالكامل' : 'Field inspection concluded and hazards remediated')
+      };
+      // A VERIFIED report must enter IN_INVESTIGATION (by opening the investigation) before it can be resolved
+      if (report.status === 'VERIFIED') {
+        await investigationService.saveInvestigation(report.id, { ...closingData, status: 'IN_PROGRESS' });
+      }
+      await investigationService.finalize(report.id, closingData);
 
       showToast(
         language === 'ar'

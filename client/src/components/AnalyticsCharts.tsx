@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardService } from '../../services/dashboardService';
+import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import {
   BarChart,
@@ -33,12 +33,13 @@ export const AnalyticsCharts: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
-  };
+  const { stats, refresh } = useData();
 
-  const stats = dashboardService.getStats();
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await refresh();
+    setIsLoading(false);
+  };
 
 
   // Localized chart datasets

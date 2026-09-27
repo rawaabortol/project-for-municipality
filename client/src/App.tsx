@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { DataProvider, useData } from './context/DataContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -25,12 +26,12 @@ import { ExportReportModal } from './components/ExportReportModal';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { LoginPage } from './components/LoginPage';
-import { dbInstance } from './utils/axios';
 import { Report } from './utils/sampleData';
 
 const MainApp: React.FC = () => {
   const { currentUser, isAuthenticated } = useAuth();
   const { t, language, isRtl } = useLanguage();
+  const { reports, clusters, alerts, refresh } = useData();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Modals state
@@ -44,11 +45,6 @@ const MainApp: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isNavbarVisible, setIsNavbarVisible] = useState<boolean>(true);
 
-  // If not authenticated or no user is open, display the Login Page as the default initial page
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
-  }
-
   // Keyboard shortcut (Alt+N) to toggle navbar slide up/down independently from scroll
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,11 +57,27 @@ const MainApp: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Force re-render state on database updates
-  const [, setTick] = useState(0);
-  const handleRefresh = () => setTick(t => t + 1);
+  // Reset navigation when a different account signs in
+  useEffect(() => {
+    setActiveTab('dashboard');
+    setSelectedReport(null);
+    setInvestigationReport(null);
+  }, [currentUser?.id]);
 
-  const unreadAlerts = dbInstance.alerts.filter(a => a.status === 'ACTIVE').length;
+  // All hooks must run before this early return (Rules of Hooks)
+  if (!isAuthenticated || !currentUser) {
+    return <LoginPage />;
+  }
+
+  const handleRefresh = () => {
+    refresh();
+  };
+
+  // Keep open modals in sync with the latest server copy of the report
+  const liveReport = (report: Report | null) =>
+    report ? reports.find(r => r.id === report.id) || report : null;
+
+  const unreadAlerts = alerts.filter(a => a.status === 'ACTIVE').length;
 
   const handleOpenInvestigation = (report: Report) => {
     setInvestigationReport(report);
@@ -138,8 +150,9 @@ const MainApp: React.FC = () => {
               </div>
             </div>
             <TripoliMap
-              reports={dbInstance.reports}
-              clusters={dbInstance.clusters}
+              reports={reports}
+              clusters={clusters}
+              alerts={alerts}
               onSelectReport={rep => setSelectedReport(rep)}
             />
           </div>
@@ -156,9 +169,9 @@ const MainApp: React.FC = () => {
       case 'clusters':
         return (
           <ClusterMonitor
-            clusters={dbInstance.clusters}
+            clusters={clusters}
             onSelectReportNumber={rNum => {
-              const r = dbInstance.reports.find(rep => rep.reportNumber === rNum);
+              const r = reports.find(rep => rep.reportNumber === rNum);
               if (r) setSelectedReport(r);
             }}
             onRefresh={handleRefresh}
@@ -168,10 +181,10 @@ const MainApp: React.FC = () => {
       case 'alerts':
         return (
           <AlertsFeed
-            alerts={dbInstance.alerts}
+            alerts={alerts}
             onRefresh={handleRefresh}
             onSelectReport={repId => {
-              const r = dbInstance.reports.find(rep => rep.id === repId);
+              const r = reports.find(rep => rep.id === repId);
               if (r) setSelectedReport(r);
             }}
           />
@@ -257,7 +270,7 @@ const MainApp: React.FC = () => {
       )}
 
       {/* Main Layout (Sidebar + Body) with animated top offset - Both scroll independently */}
-      <div className={`flex-1 flex w-full max-w-7xl mx-auto min-h-0 overflow-hidden transition-all duration-300 ease-in-out ${isNavbarVisible ? 'pt-16' : 'pt-2'}`}>
+      <div className={`flex-1 flex w-full min-h-0 overflow-hidden transition-all duration-300 ease-in-out ${isNavbarVisible ? 'pt-16' : 'pt-2'}`}>
         <Sidebar
           activeTab={activeTab}
           setActiveTab={tab => {
@@ -288,14 +301,16 @@ const MainApp: React.FC = () => {
       />
 
       <ReportDetailsModal
-        report={selectedReport}
+        key={selectedReport?.id || 'no-report'}
+        report={liveReport(selectedReport)}
         onClose={() => setSelectedReport(null)}
         onOpenInvestigation={rep => handleOpenInvestigation(rep)}
         onRefresh={handleRefresh}
       />
 
       <InvestigationModal
-        report={investigationReport}
+        key={investigationReport?.id || 'no-investigation'}
+        report={liveReport(investigationReport)}
         isOpen={!!investigationReport}
         onClose={() => setInvestigationReport(null)}
         onSuccess={handleRefresh}
@@ -325,7 +340,9 @@ export default function App() {
     <LanguageProvider>
       <AuthProvider>
         <NotificationProvider>
-          <MainApp />
+          <DataProvider>
+            <MainApp />
+          </DataProvider>
         </NotificationProvider>
       </AuthProvider>
     </LanguageProvider>

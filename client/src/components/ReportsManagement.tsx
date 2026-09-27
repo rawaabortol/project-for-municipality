@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
 import { Report } from '../../utils/sampleData';
 import { getRiskColor, getStatusBadge, formatDateTime } from '../../utils/helper';
 import { TRIPOLI_DISTRICTS } from '../../utils/APIConst';
@@ -50,14 +50,13 @@ export const ReportsManagement: React.FC<ReportsManagementProps> = ({ onSelectRe
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
+  const { reports: allReports, categories, refresh } = useData();
+
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
+    await refresh();
+    setIsLoading(false);
   };
-
-
-  const allReports = dbInstance.reports;
-  const categories = dbInstance.categories;
 
   // Filter & Search Logic
   const filtered = allReports.filter(r => {

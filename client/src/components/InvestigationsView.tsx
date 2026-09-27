@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
 import { Investigation, Report } from '../../utils/sampleData';
 import { formatDateTime } from '../../utils/helper';
 import { useLanguage } from '../../context/LanguageContext';
@@ -32,12 +32,13 @@ export const InvestigationsView: React.FC<InvestigationsViewProps> = ({ onSelect
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
-  };
+  const { investigations, reports, refresh } = useData();
 
-  const investigations = dbInstance.investigations;
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await refresh();
+    setIsLoading(false);
+  };
 
   const filtered = investigations.filter(inv => {
     if (filterResult !== 'ALL' && inv.result !== filterResult) return false;
@@ -118,7 +119,7 @@ export const InvestigationsView: React.FC<InvestigationsViewProps> = ({ onSelect
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {filtered.map(inv => {
-          const rep = dbInstance.reports.find(r => r.reportNumber === inv.reportNumber);
+          const rep = reports.find(r => r.id === inv.reportId || r.reportNumber === inv.reportNumber);
           const findingsText = translateFindings(inv.findings, inv.investigationCode);
           const actionsText = translateActions(inv.actionsTaken, inv.investigationCode);
           const recsText = translateRecommendations(inv.recommendations, inv.investigationCode);

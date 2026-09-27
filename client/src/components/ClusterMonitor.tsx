@@ -33,18 +33,21 @@ export const ClusterMonitor: React.FC<ClusterMonitorProps> = ({ clusters, onSele
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRunScan = () => {
+  const handleRunScan = async () => {
     setIsScanning(true);
-    setTimeout(() => {
-      const updated = clusterService.triggerScan();
-      setIsScanning(false);
+    try {
+      const count = await clusterService.triggerScan();
       showToast(
         language === 'ar'
-          ? `اكتمل مسح البؤر الوبائية! رصد ومتابعة ${updated.length} بؤر نشطة في طرابلس.`
-          : `Cluster scan complete! ${updated.length} active public health clusters monitored across Tripoli.`
+          ? `اكتمل مسح البؤر الوبائية! رصد ومتابعة ${count} بؤر نشطة في طرابلس.`
+          : `Cluster scan complete! ${count} active public health clusters monitored across Tripoli.`
       );
       onRefresh();
-    }, 1000);
+    } catch (err: any) {
+      showToast(err.message || (language === 'ar' ? 'فشل مسح البؤر الوبائية' : 'Cluster scan failed'));
+    } finally {
+      setIsScanning(false);
+    }
   };
 
 

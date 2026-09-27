@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardService } from '../../services/dashboardService';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
 import { Report } from '../../utils/sampleData';
 import { getRiskColor, getStatusBadge, formatDateTime } from '../../utils/helper';
 import { TripoliMap } from './TripoliMap';
@@ -37,14 +36,13 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
-  };
+  const { stats, reports, clusters, refresh } = useData();
 
-  const stats = dashboardService.getStats();
-  const reports = dbInstance.reports;
-  const clusters = dbInstance.clusters;
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await refresh();
+    setIsLoading(false);
+  };
 
   // Unreviewed or critical triage queue
   const triageQueue = reports.filter(

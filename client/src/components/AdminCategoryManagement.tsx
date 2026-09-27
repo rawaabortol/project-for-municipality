@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { categoryService } from '../../services/categoryService';
+import { useData } from '../../context/DataContext';
+import { Category } from '../../utils/sampleData';
 import { useNotifications } from '../../context/NotificationContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Layers, Plus, Save, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
@@ -14,61 +16,78 @@ export const AdminCategoryManagement: React.FC = () => {
     isRtl
   } = useLanguage();
 
+  const { refresh: refreshSharedData } = useData();
   const [isLoading, setIsLoading] = useState(true);
-  const [categories, setCategories] = useState(dbInstance.categories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newName, setNewName] = useState('');
   const [newWeight, setNewWeight] = useState(10);
   const [newDesc, setNewDesc] = useState('');
 
+  const loadCategories = async () => {
+    setIsLoading(true);
+    try {
+      setCategories(await categoryService.getCategories(true));
+    } catch (err: any) {
+      showToast(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 450);
-    return () => clearTimeout(timer);
+    loadCategories();
   }, []);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setCategories([...dbInstance.categories]);
-      setIsLoading(false);
-    }, 400);
+    loadCategories();
   };
 
-
+  // Local edit while typing; persisted on blur
   const handleWeightChange = (catId: string, weight: number) => {
-    const cat = dbInstance.categories.find(c => c.id === catId);
-    if (cat) {
-      cat.baseWeight = weight;
-      dbInstance.persistAll();
-      setCategories([...dbInstance.categories]);
+    setCategories(prev => prev.map(c => (c.id === catId ? { ...c, baseWeight: weight } : c)));
+  };
+
+  const handleWeightCommit = async (cat: Category) => {
+    const weight = Math.min(25, Math.max(1, cat.baseWeight || 10));
+    try {
+      const updated = await categoryService.updateCategory(cat.id, { baseWeight: weight });
+      setCategories(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+      refreshSharedData();
       showToast(
         language === 'ar'
           ? `تم تحديث الوزن الأساسي لفئة: ${translateCategory(cat.name)}`
           : `Base weight updated for ${cat.name}`
       );
+    } catch (err: any) {
+      showToast(err.message);
+      loadCategories();
     }
   };
 
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
-    dbInstance.addCategory({
-      name: newName,
-      code: newName.toUpperCase().replace(/[^A-Z]/g, '_'),
-      baseWeight: Number(newWeight),
-      description: newDesc,
-      icon: 'AlertCircle'
-    });
-
-    setCategories([...dbInstance.categories]);
-    setNewName('');
-    setNewDesc('');
-    setNewWeight(10);
-    showToast(
-      language === 'ar'
-        ? `تمت إضافة الفئة الجديدة "${newName}" إلى قاعدة البيانات بنجاح!`
-        : `New category "${newName}" added to database!`
-    );
+    try {
+      await categoryService.createCategory({
+        name: newName.trim(),
+        baseWeight: Number(newWeight),
+        description: newDesc,
+        icon: 'AlertCircle'
+      });
+      await loadCategories();
+      refreshSharedData();
+      showToast(
+        language === 'ar'
+          ? `تمت إضافة الفئة الجديدة "${newName}" إلى قاعدة البيانات بنجاح!`
+          : `New category "${newName}" added to database!`
+      );
+      setNewName('');
+      setNewDesc('');
+      setNewWeight(10);
+    } catch (err: any) {
+      showToast(err.message);
+    }
   };
 
   return (
@@ -202,7 +221,8 @@ export const AdminCategoryManagement: React.FC = () => {
                         min={1}
                         max={25}
                         value={cat.baseWeight}
-                        onChange={e => handleWeightChange(cat.id, parseInt(e.target.value) || 10)}
+                        onChange={e => handleWeightChange(cat.id, parseInt(e.target.value) || 0)}
+                        onBlur={() => handleWeightCommit(cat)}
                         className="w-16 bg-slate-800 border border-slate-700 text-slate-100 px-2 py-1 rounded text-xs font-bold text-center"
                       />
                       <span className="text-slate-400 text-[10px]">{language === 'ar' ? 'نقطة' : 'pts'}</span>

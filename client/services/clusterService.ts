@@ -1,16 +1,22 @@
-import { dbInstance } from "../utils/axios";
+import { apiClient } from "../utils/axios";
+import { toCluster } from "../utils/normalize";
 import { Cluster } from "../utils/sampleData";
 
-/**
- * Browser-safe cluster service.
- */
 export const clusterService = {
-  getClusters: (): Cluster[] => {
-    return [...dbInstance.clusters];
+  getClusters: async (): Promise<Cluster[]> => {
+    const { data } = await apiClient.get("/clusters");
+    return data.clusters.map(toCluster);
   },
 
-  triggerScan: (): Cluster[] => {
-    return dbInstance.runClusterScan();
+  /** Runs server-side spatial-temporal detection; resolves to the number of tracked clusters. */
+  triggerScan: async (): Promise<number> => {
+    const { data } = await apiClient.post("/clusters/detect");
+    return data.clusters.length;
+  },
+
+  updateStatus: async (clusterId: string, status: Cluster["status"]): Promise<Cluster> => {
+    const { data } = await apiClient.put(`/clusters/${clusterId}/status`, { status });
+    return toCluster(data.cluster);
   },
 };
 

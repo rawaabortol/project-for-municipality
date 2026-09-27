@@ -146,6 +146,9 @@ export function calculateReportRisk(
     const nearbySameCategory = existingReports.filter((r: any) => {
       if (r._id && reportData._id && String(r._id) === String(reportData._id))
         return false;
+      const rCategory =
+        (typeof r.category === "object" ? r.category?.name : r.category) || "";
+      if (rCategory.toLowerCase() !== catLower) return false;
       const rLat = r.location?.lat;
       const rLng = r.location?.lng;
       if (!rLat || !rLng) return false;

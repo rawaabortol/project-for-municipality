@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { dbInstance } from '../../utils/axios';
+import { auditService } from '../../services/notificationService';
+import { AuditLog } from '../../utils/sampleData';
 import { formatDateTime } from '../../utils/helper';
 import { useLanguage } from '../../context/LanguageContext';
 import { History, Shield, Search, Lock, UserCheck, RefreshCw } from 'lucide-react';
@@ -17,28 +18,28 @@ export const AuditLogsView: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loadError, setLoadError] = useState('');
+
+  const loadLogs = async () => {
+    setIsLoading(true);
+    try {
+      setLogs(await auditService.getLogs());
+      setLoadError('');
+    } catch (err: any) {
+      setLoadError(err.message || 'Failed to load audit logs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 450);
-    return () => clearTimeout(timer);
+    loadLogs();
   }, []);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
+    loadLogs();
   };
-
-
-  // Realistic municipal health audit trail
-  const logs = [
-    { id: 'aud-1', user: 'Dr. Tariq Al-Hajj', role: 'HEALTH_OFFICER', action: 'START_INVESTIGATION', resource: 'Report #TRP-2026-0001', details: 'Field investigation INV-2026-0101 initiated for water contamination in Bab Al-Tabbaneh.', ip: '192.168.1.42', time: new Date(Date.now() - 3600000 * 2).toISOString() },
-    { id: 'aud-2', user: 'Inspector Layla Khoury', role: 'HEALTH_OFFICER', action: 'STATUS_TRANSITION', resource: 'Report #TRP-2026-0006', details: 'Status moved from UNDER_REVIEW to IN_INVESTIGATION following food poisoning cluster at Al-Tal.', ip: '192.168.1.18', time: new Date(Date.now() - 3600000 * 5).toISOString() },
-    { id: 'aud-3', user: 'Dr. Nabil Sabbagh', role: 'ADMINISTRATOR', action: 'ASSIGN_OFFICER', resource: 'Report #TRP-2026-0009', details: 'Assigned Inspector Bassam Chami to investigate oil slick at Al-Mina port.', ip: '192.168.1.10', time: new Date(Date.now() - 3600000 * 8).toISOString() },
-    { id: 'aud-4', user: 'Surveillance Engine', role: 'SYSTEM', action: 'CLUSTER_DETECTED', resource: 'Cluster #CLS-BAB-001', details: 'Spatial-temporal waterborne cluster detected in Bab Al-Tabbaneh (5 incidents, 138 affected).', ip: '127.0.0.1', time: new Date(Date.now() - 3600000 * 12).toISOString() },
-    { id: 'aud-5', user: 'Dr. Nabil Sabbagh', role: 'ADMINISTRATOR', action: 'USER_ROLE_CHANGE', resource: 'User: Bassam Chami', details: 'Updated user credentials and assigned badge TRP-OFF-05.', ip: '192.168.1.10', time: new Date(Date.now() - 3600000 * 24).toISOString() },
-    { id: 'aud-6', user: 'Rami Haddad', role: 'CITIZEN', action: 'REPORT_SUBMITTED', resource: 'Report #TRP-2026-0001', details: 'New incident logged via citizen web portal with GPS coordinates (34.4442, 35.8504).', ip: '178.135.22.90', time: new Date(Date.now() - 3600000 * 30).toISOString() },
-    { id: 'aud-7', user: 'Eng. Ziad Kabbara', role: 'HEALTH_OFFICER', action: 'RESOLVE_INCIDENT', resource: 'Report #TRP-2026-0014', details: 'Sewage overflow at Abu Samra cleared and chlorinated; incident closed.', ip: '192.168.1.29', time: new Date(Date.now() - 3600000 * 48).toISOString() }
-  ];
 
   const filtered = logs.filter(l => {
     if (!searchTerm.trim()) return true;
@@ -105,6 +106,12 @@ export const AuditLogsView: React.FC = () => {
                   <SkeletonAuditLogRow />
                   <SkeletonAuditLogRow />
                 </>
+              ) : loadError || filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className={`py-8 text-center text-xs ${loadError ? 'text-rose-400' : 'text-slate-400'}`}>
+                    {loadError || (language === 'ar' ? 'لا توجد سجلات تدقيق' : 'No audit log entries')}
+                  </td>
+                </tr>
               ) : (
                 filtered.map(log => (
                   <tr key={log.id} className="hover:bg-slate-800/50 transition-colors">

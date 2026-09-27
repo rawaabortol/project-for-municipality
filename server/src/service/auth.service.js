@@ -1,100 +1,93 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import { USER_ROLES } from "../constant/index.js";
+import { USER_ROLES, TRIPOLI_DISTRICTS } from "../constant/index.js";
+import { JWT_SECRET, JWT_EXPIRES_IN } from "../config/auth.js";
+import { logAuditAction } from "./auditService.js";
+import { httpError } from "../middleware/errorHandler.js";
 
 const SALT_ROUNDS = 12;
-const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret";
-const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || "7d";
+const MIN_PASSWORD_LENGTH = 6;
 
 const generateToken = (user) =>
-  jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES,
+  jwt.sign({ id: String(user._id), role: user.role }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
   });
 
-class UserService {
-  static async register(body) {
-    const { password, phone, ...other } = body;
+export const toSafeUser = (user) => {
+  const obj = typeof user.toObject === "function" ? user.toObject() : { ...user };
+  delete obj.password;
+  return obj;
+};
 
-    if (!password) {
-      const err = new Error("Password is required");
-      err.statusCode = 400;
-      throw err;
-    }
+export const hashPassword = (password) => bcrypt.hash(password, SALT_ROUNDS);
 
-    const cleanPhone = String(phone || "").trim();
-    const cleanEmail = String(other.email || "")
-      .trim()
-      .toLowerCase();
+export const assertValidPassword = (password) => {
+  if (!password || String(password).length < MIN_PASSWORD_LENGTH) {
+    throw httpError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+};
 
-    const existingUser = await User.findOne({
-      $or: [{ email: cleanEmail }, { phone: cleanPhone }],
-    });
+class AuthService {
+  /**
+   * Public self-registration. Always creates a CITIZEN; roles are granted by an administrator.
+   */
+  static async register(body = {}) {
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const phone = String(body.phone || "").trim();
+    const district = TRIPOLI_DISTRICTS.includes(body.district) ? body.district : undefined;
 
-    if (existingUser) {
-      const err = new Error("User already exists");
-      err.statusCode = 409;
-      throw err;
-    }
+    if (!name || !email) throw httpError(400, "Name and email are required");
+    assertValidPassword(body.password);
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const duplicateChecks = [{ email }];
+    if (phone) duplicateChecks.push({ phone });
+    const existingUser = await User.findOne({ $or: duplicateChecks });
+    if (existingUser) throw httpError(409, "User already exists with this email or phone");
+
     const user = await User.create({
-      ...other,
-      email: cleanEmail,
-      phone: cleanPhone,
-      role: other.role || USER_ROLES.CITIZEN,
-      password: hashedPassword,
+      name,
+      email,
+      phone,
+      district,
+      role: USER_ROLES.CITIZEN,
+      password: await hashPassword(body.password),
     });
 
-    const token = generateToken(user);
-    const safeUser = user.toObject();
-    delete safeUser.password;
+    await logAuditAction({
+      user,
+      action: "USER_REGISTER",
+      resource: `User ${user.email}`,
+      details: "Citizen registered account",
+    });
 
-    return { user: safeUser, token };
+    return { user: toSafeUser(user), token: generateToken(user) };
   }
 
-  static async login({ phone, email, password }) {
-    if (!password) {
-      const err = new Error("Password is required");
-      err.statusCode = 400;
-      throw err;
-    }
+  static async login({ phone, email, password } = {}) {
+    if (!password) throw httpError(400, "Password is required");
+    if (!phone && !email) throw httpError(400, "Phone or email is required");
 
-    if (!phone && !email) {
-      const err = new Error("Phone or email is required");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    const query = phone
-      ? { phone: String(phone).trim() }
-      : {
-          email: String(email || "")
-            .trim()
-            .toLowerCase(),
-        };
+    const query = email
+      ? { email: String(email).trim().toLowerCase() }
+      : { phone: String(phone).trim() };
 
     const user = await User.findOne(query);
-
-    if (!user) {
-      const err = new Error("Invalid credentials");
-      err.statusCode = 401;
-      throw err;
+    if (!user || !(await bcrypt.compare(String(password), user.password))) {
+      throw httpError(401, "Invalid credentials");
     }
+    if (user.isActive === false) throw httpError(403, "Account is deactivated");
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      const err = new Error("Invalid credentials");
-      err.statusCode = 401;
-      throw err;
-    }
+    await logAuditAction({
+      user,
+      action: "USER_LOGIN",
+      resource: `User ${user.email}`,
+      details: "User authenticated into system",
+    });
 
-    const token = generateToken(user);
-    const safeUser = user.toObject();
-    delete safeUser.password;
-
-    return { user: safeUser, token };
+    return { user: toSafeUser(user), token: generateToken(user) };
   }
 }
 
-export default UserService;
+export default AuthService;

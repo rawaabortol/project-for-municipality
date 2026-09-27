@@ -72,5 +72,11 @@ A full-stack, smart public health incident surveillance, risk assessment, epidem
 ```
 
 ## Running the Application
-1. **Frontend**: `npm run dev` (starts on port 3000)
-2. **Server**: `cd server && npm run dev` (starts on port 5000)
+Requires Node.js 20+ and a running MongoDB instance.
+
+1. **Configure**: copy `.env.example` to `server/.env` and set `MONGODB_URI`, `JWT_SECRET`,
+   `ADMIN_EMAIL` and `ADMIN_PASSWORD`. On first start the server seeds the report categories and
+   creates that administrator (public sign-up only creates citizen accounts; the admin grants
+   Health Officer / Administrator roles from *Users & Officers*).
+2. **Server**: `cd server && npm install && npm run dev` (port 5050; 5000 is used by AirPlay on macOS)
+3. **Frontend**: `cd client && npm install && npm run dev` (port 3000; `/api` is proxied to the server)

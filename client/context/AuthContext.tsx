@@ -1,85 +1,71 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { User } from "../utils/sampleData";
-import { authService } from "../services/authService";
-import { dbInstance } from "../utils/axios";
+import { authService, RegisterPayload } from "../services/authService";
+import { userService } from "../services/userService";
+import { authStorage } from "../utils/authStorage";
+import { SESSION_EXPIRED_EVENT } from "../utils/axios";
 
 interface AuthContextType {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
-  switchRole: (
-    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
-    specificUserId?: string,
-  ) => void;
-  login: (email: string, password?: string) => Promise<boolean>;
-  register: (userData: Omit<User, "id">) => Promise<User | null>;
-  updateProfile: (updates: Partial<User>) => User | null;
+  /** Resolves to the signed-in user; rejects with the server's error message. */
+  login: (email: string, password: string) => Promise<User>;
+  register: (payload: RegisterPayload) => Promise<User>;
+  updateProfile: (updates: Partial<User>) => Promise<User>;
   logout: () => void;
   isAuthenticated: boolean;
+  /** True while a stored session is being re-validated against the server on startup. */
+  isRestoringSession: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return authService.getCurrentUser();
-  });
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUserState] = useState<User | null>(() => authService.getStoredUser());
+  const [isRestoringSession, setIsRestoringSession] = useState<boolean>(() => !!authStorage.getToken());
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return !!authService.getCurrentUser();
-  });
+  const setCurrentUser = useCallback((user: User | null) => {
+    if (user) authStorage.setUser(user);
+    setCurrentUserState(user);
+  }, []);
 
-  const switchRole = (
-    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
-    specificUserId?: string,
-  ) => {
-    const switched = authService.switchRoleAccount(role, specificUserId);
-    if (switched) {
-      setCurrentUser(switched);
-      setIsAuthenticated(true);
-    }
-  };
-
-  const login = async (email: string, password?: string): Promise<boolean> => {
-    try {
-      const user = await authService.login(email, password);
-      if (user) {
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const register = async (userData: Omit<User, "id">): Promise<User | null> => {
-    try {
-      const resp = await dbInstance.apiPost("/api/auth/register", userData);
-      const newUser = resp.user as User;
-      setCurrentUser(newUser);
-      setIsAuthenticated(true);
-      return newUser;
-    } catch (e) {
-      return null;
-    }
-  };
-
-  const updateProfile = (updates: Partial<User>): User | null => {
-    if (!currentUser) return null;
-    const updated = dbInstance.updateUserProfile(currentUser.id, updates);
-    if (updated) {
-      setCurrentUser({ ...updated });
-    }
-    return updated;
-  };
-
-  const logout = () => {
+  const logout = useCallback(() => {
     authService.logout();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
+    setCurrentUserState(null);
+  }, []);
+
+  // Re-validate a stored token once on startup (role or account status may have changed)
+  useEffect(() => {
+    if (!authStorage.getToken()) return;
+    authService
+      .fetchMe()
+      .then(setCurrentUserState)
+      .catch(() => logout())
+      .finally(() => setIsRestoringSession(false));
+  }, [logout]);
+
+  // The API client clears storage on any 401; mirror that in React state
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED_EVENT, logout);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, logout);
+  }, [logout]);
+
+  const login = async (email: string, password: string): Promise<User> => {
+    const user = await authService.login(email, password);
+    setCurrentUserState(user);
+    return user;
+  };
+
+  const register = async (payload: RegisterPayload): Promise<User> => {
+    const user = await authService.register(payload);
+    setCurrentUserState(user);
+    return user;
+  };
+
+  const updateProfile = async (updates: Partial<User>): Promise<User> => {
+    const updated = await userService.updateMyProfile(updates);
+    setCurrentUser(updated);
+    return updated;
   };
 
   return (
@@ -87,12 +73,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         currentUser,
         setCurrentUser,
-        switchRole,
         login,
         register,
         updateProfile,
         logout,
-        isAuthenticated,
+        isAuthenticated: !!currentUser,
+        isRestoringSession,
       }}
     >
       {children}

@@ -3,7 +3,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { TRIPOLI_DISTRICTS } from "../../utils/APIConst";
-import { initialUsers } from "../../utils/sampleData";
 import {
   X,
   LogIn,
@@ -31,7 +30,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = "signin",
 }) => {
-  const { login, register, switchRole, currentUser } = useAuth();
+  const { login, register } = useAuth();
   const { showToast } = useNotifications();
   const { t, translateDistrict, translateRole, language, isRtl } =
     useLanguage();
@@ -47,7 +46,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Sign Up form
   const [signUpName, setSignUpName] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpPhone, setSignUpPhone] = useState("+961 7");
+  const [signUpPhone, setSignUpPhone] = useState("+961 ");
   const [signUpDistrict, setSignUpDistrict] = useState("Al-Tal");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState("");
@@ -78,8 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const ok = await login(signInEmail, signInPassword);
-      if (!ok) throw new Error("Invalid credentials");
+      await login(signInEmail, signInPassword);
       showToast(
         language === "ar"
           ? "تم تسجيل الدخول بنجاح! مرحباً بك في نبض طرابلس الصحي."
@@ -118,7 +116,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       );
       return;
     }
-    if (signUpPassword && signUpPassword !== signUpConfirmPassword) {
+    if (signUpPassword.length < 6) {
+      setErrorMsg(
+        language === "ar"
+          ? "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل."
+          : "Password must be at least 6 characters.",
+      );
+      return;
+    }
+    if (signUpPassword !== signUpConfirmPassword) {
       setErrorMsg(
         language === "ar"
           ? "كلمتا المرور غير متطابقتين."
@@ -130,16 +136,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmitting(true);
     try {
       const newUser = await register({
-        name: signUpName,
-        email: signUpEmail,
-        phone: signUpPhone,
+        name: signUpName.trim(),
+        email: signUpEmail.trim(),
+        phone: signUpPhone.trim() === "+961 " ? "" : signUpPhone.trim(),
         district: signUpDistrict,
-        role: "CITIZEN",
-        title: "Resident Reporter",
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`,
-        password: signUpPassword || undefined,
+        password: signUpPassword,
       });
-      if (!newUser) throw new Error("Registration failed");
       showToast(
         language === "ar"
           ? `أهلاً بك يا ${newUser.name}! تم إنشاء حسابك كمواطن راصد بنجاح.`
@@ -151,19 +153,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleQuickDemoSelect = (
-    role: "CITIZEN" | "HEALTH_OFFICER" | "ADMINISTRATOR",
-    userId: string,
-  ) => {
-    switchRole(role, userId);
-    showToast(
-      language === "ar"
-        ? `تم التبديل بنجاح إلى حساب: ${role === "CITIZEN" ? "المواطن رامي حداد" : role === "HEALTH_OFFICER" ? "د. طارق الحج" : "د. نبيل صباغ"}`
-        : `Logged in as ${role === "CITIZEN" ? "Rami Haddad (Citizen)" : role === "HEALTH_OFFICER" ? "Dr. Tariq Al-Hajj (Officer)" : "Dr. Nabil Sabbagh (Admin)"}`,
-    );
-    onClose();
   };
 
   return (
@@ -425,56 +414,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </form>
           )}
 
-          {/* Quick Demo Logins Section */}
-          <div className="pt-4 border-t border-slate-800 space-y-2.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              {t("quickDemo")}
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickDemoSelect("CITIZEN", "usr-cit-1")}
-                className="p-2.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/60 border border-blue-700/50 text-left rtl:text-right transition-all group"
-              >
-                <div className="font-bold text-blue-300 text-xs truncate">
-                  {language === "ar" ? "رامي حداد" : "Rami Haddad"}
-                </div>
-                <div className="text-[10px] text-blue-400/80">
-                  {translateRole("CITIZEN")}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemoSelect("HEALTH_OFFICER", "usr-off-1")
-                }
-                className="p-2.5 rounded-xl bg-teal-950/40 hover:bg-teal-900/60 border border-teal-700/50 text-left rtl:text-right transition-all group"
-              >
-                <div className="font-bold text-teal-300 text-xs truncate">
-                  {language === "ar" ? "د. طارق الحج" : "Dr. Tariq"}
-                </div>
-                <div className="text-[10px] text-teal-400/80">
-                  {translateRole("HEALTH_OFFICER")}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemoSelect("ADMINISTRATOR", "usr-admin-1")
-                }
-                className="p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-700/50 text-left rtl:text-right transition-all group"
-              >
-                <div className="font-bold text-purple-300 text-xs truncate">
-                  {language === "ar" ? "د. نبيل صباغ" : "Dr. Nabil"}
-                </div>
-                <div className="text-[10px] text-purple-400/80">
-                  {translateRole("ADMINISTRATOR")}
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

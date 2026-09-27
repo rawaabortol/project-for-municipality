@@ -1,20 +1,19 @@
-import { dbInstance } from "../utils/axios";
+import { apiClient } from "../utils/axios";
+import { toAlert } from "../utils/normalize";
 import { Alert } from "../utils/sampleData";
 
-/**
- * Browser-safe alert service.
- */
 export const alertService = {
-  getAlerts: (): Alert[] => {
-    return [...dbInstance.alerts];
+  getAlerts: async (): Promise<Alert[]> => {
+    const { data } = await apiClient.get("/alerts");
+    return data.alerts.map(toAlert);
   },
 
-  acknowledgeAlert: (alertId: string, officer: any): void => {
-    dbInstance.acknowledgeAlert(alertId, officer);
+  acknowledgeAlert: async (alertId: string): Promise<void> => {
+    await apiClient.put(`/alerts/${alertId}/ack`);
   },
 
-  resolveAlert: (alertId: string): void => {
-    dbInstance.resolveAlert(alertId);
+  resolveAlert: async (alertId: string): Promise<void> => {
+    await apiClient.put(`/alerts/${alertId}/resolve`);
   },
 };
 

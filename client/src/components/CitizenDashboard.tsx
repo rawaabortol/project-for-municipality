@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { dbInstance } from '../../utils/axios';
+import { useData } from '../../context/DataContext';
 import { Report } from '../../utils/sampleData';
 import { getRiskColor, getStatusBadge, formatDateTime } from '../../utils/helper';
 import { PlusCircle, FileText, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Info, RefreshCw } from 'lucide-react';
@@ -27,13 +27,16 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
+  const { reports, refresh } = useData();
+
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
+    await refresh();
+    setIsLoading(false);
   };
 
-  const allReports = dbInstance.reports;
-  const myReports = allReports.filter(r => r.citizen.userId === currentUser.id);
+  // The API only returns the signed-in citizen's own reports
+  const myReports = reports;
 
   // Statistics for this citizen
   const resolvedCount = myReports.filter(r => r.status === 'RESOLVED' || r.status === 'CLOSED').length;

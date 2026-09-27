@@ -43,24 +43,32 @@ export const AlertsFeed: React.FC<AlertsFeedProps> = ({ alerts, onRefresh, onSel
     }, 400);
   };
 
-  const handleAcknowledge = (alertId: string) => {
-    alertService.acknowledgeAlert(alertId, currentUser);
-    showToast(
-      language === 'ar'
-        ? `تم استلام وتأكيد التنبيه بواسطة ${currentUser.name}`
-        : `Alert acknowledged by ${currentUser.name}`
-    );
-    onRefresh();
+  const handleAcknowledge = async (alertId: string) => {
+    try {
+      await alertService.acknowledgeAlert(alertId);
+      showToast(
+        language === 'ar'
+          ? `تم استلام وتأكيد التنبيه بواسطة ${currentUser.name}`
+          : `Alert acknowledged by ${currentUser.name}`
+      );
+      onRefresh();
+    } catch (err: any) {
+      showToast(err.message);
+    }
   };
 
-  const handleResolve = (alertId: string) => {
-    alertService.resolveAlert(alertId);
-    showToast(
-      language === 'ar'
-        ? 'تم تحديث حالة التنبيه إلى تمت المعالجة.'
-        : 'Alert status set to RESOLVED.'
-    );
-    onRefresh();
+  const handleResolve = async (alertId: string) => {
+    try {
+      await alertService.resolveAlert(alertId);
+      showToast(
+        language === 'ar'
+          ? 'تم تحديث حالة التنبيه إلى تمت المعالجة.'
+          : 'Alert status set to RESOLVED.'
+      );
+      onRefresh();
+    } catch (err: any) {
+      showToast(err.message);
+    }
   };
 
   const filtered = alerts.filter(a => {
@@ -193,7 +201,7 @@ export const AlertsFeed: React.FC<AlertsFeedProps> = ({ alerts, onRefresh, onSel
                     </span>
                     <span className="flex items-center gap-1">
                       <UserCheck className="w-3.5 h-3.5 text-teal-400" />
-                      {alert.assignedOfficer.name} ({alert.assignedOfficer.badgeNumber})
+                      {alert.assignedOfficer?.name || (language === 'ar' ? 'غير مسند' : 'Unassigned')}
                     </span>
                   </div>
 
